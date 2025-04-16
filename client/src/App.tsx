@@ -28,7 +28,7 @@ function Router() {
           <Files />
         </AppShell>
       )} />
-      <ProtectedRoute path="/files/:folderId" component={(params: { folderId: string }) => (
+      <ProtectedRoute path="/files/:folderId" component={() => (
         <AppShell>
           <Files />
         </AppShell>

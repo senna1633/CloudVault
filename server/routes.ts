@@ -1,11 +1,20 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { setupAuth } from "./auth";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { z } from "zod";
 import { insertFolderSchema, insertFileSchema } from "@shared/schema";
+
+// Authentication middleware
+const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.status(401).json({ message: "You must be logged in to access this resource" });
+};
 
 // Ensure uploads directory exists
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");
@@ -26,7 +35,7 @@ const upload = multer({
     }
   }),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB file size limit
+    fileSize: 1024 * 1024 * 1024, // 1GB file size limit (effectively unlimited for local usage)
   }
 });
 
@@ -35,16 +44,13 @@ const DEFAULT_USER_ID = 1; // Using the demo user
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
-  // Middleware to handle user (using a fixed demo user for simplicity)
-  app.use((req, res, next) => {
-    (req as any).userId = DEFAULT_USER_ID;
-    next();
-  });
+  // Setup authentication routes
+  setupAuth(app);
 
   // Get storage stats
-  app.get('/api/storage', async (req: Request, res: Response) => {
+  app.get('/api/storage', isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).userId;
+      const userId = req.user!.id;
       const stats = await storage.getStorageStats(userId);
       res.json(stats);
     } catch (error) {
