@@ -6,6 +6,8 @@ import {
 } from "@shared/schema";
 
 // Interface for storage operations
+import session from "express-session";
+
 export interface IStorage {
   // User operations
   getUser(id: number): Promise<User | undefined>;
@@ -30,7 +32,14 @@ export interface IStorage {
   
   // Storage stats
   getStorageStats(userId: number): Promise<StorageStats>;
+
+  // Session store
+  sessionStore: session.Store;
 }
+
+import createMemoryStore from "memorystore";
+
+const MemoryStore = createMemoryStore(session);
 
 export class MemStorage implements IStorage {
   private users: Map<number, User>;
@@ -39,6 +48,7 @@ export class MemStorage implements IStorage {
   private userIdCounter: number;
   private folderIdCounter: number;
   private fileIdCounter: number;
+  public sessionStore: session.Store;
   
   constructor() {
     this.users = new Map();
@@ -48,7 +58,12 @@ export class MemStorage implements IStorage {
     this.folderIdCounter = 1;
     this.fileIdCounter = 1;
     
-    // Initialize with a demo user
+    // Create memory session store
+    this.sessionStore = new MemoryStore({
+      checkPeriod: 86400000 // 24 hours
+    });
+    
+    // Initialize with a demo user - will be replaced by registration
     this.createUser({
       username: "demo",
       password: "password"
@@ -184,7 +199,8 @@ export class MemStorage implements IStorage {
     );
     
     const usedSpace = userFiles.reduce((sum, file) => sum + file.size, 0);
-    const totalSpace = 1024 * 1024 * 1024 * 1; // 1TB in bytes
+    // Setting an extremely large storage limit (effectively unlimited for local usage)
+    const totalSpace = 1024 * 1024 * 1024 * 1024 * 100; // 100TB in bytes
     const percentUsed = (usedSpace / totalSpace) * 100;
     
     return {
