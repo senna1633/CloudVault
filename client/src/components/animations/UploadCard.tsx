@@ -406,8 +406,8 @@ export default function UploadCard() {
         </CardContent>
       </Card>
 
-      {/* CSS for gradient animations */}
-      <style jsx global>{`
+      {/* CSS for gradient animations using regular style tag */}
+      <style dangerouslySetInnerHTML={{ __html: `
         @keyframes gradientSpin {
           0% {
             transform: rotate(0deg);
@@ -428,7 +428,7 @@ export default function UploadCard() {
             background-position: 0% 50%;
           }
         }
-      `}</style>
+      `}} />
     </motion.div>
   )
 }

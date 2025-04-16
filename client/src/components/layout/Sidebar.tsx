@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Cloud, Home, Folder, Image, Share2, Clock, Trash2 } from "lucide-react";
+import { Cloud, Home, Folder, Image, Share2, Clock, Trash2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,12 @@ export default function Sidebar() {
       icon: <Trash2 className="h-5 w-5" />, 
       path: "/trash",
       active: location === "/trash"
+    },
+    { 
+      name: "Animations", 
+      icon: <Sparkles className="h-5 w-5" />, 
+      path: "/animations",
+      active: location === "/animations"
     },
   ];
   
