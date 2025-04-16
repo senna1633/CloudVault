@@ -1,0 +1,266 @@
+import type { Express, Request, Response } from "express";
+import { createServer, type Server } from "http";
+import { storage } from "./storage";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { z } from "zod";
+import { insertFolderSchema, insertFileSchema } from "@shared/schema";
+
+// Ensure uploads directory exists
+const UPLOADS_DIR = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: function(req, file, cb) {
+      cb(null, UPLOADS_DIR);
+    },
+    filename: function(req, file, cb) {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const ext = path.extname(file.originalname);
+      cb(null, uniqueSuffix + ext);
+    }
+  }),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB file size limit
+  }
+});
+
+const DEFAULT_USER_ID = 1; // Using the demo user
+
+export async function registerRoutes(app: Express): Promise<Server> {
+  const httpServer = createServer(app);
+
+  // Middleware to handle user (using a fixed demo user for simplicity)
+  app.use((req, res, next) => {
+    (req as any).userId = DEFAULT_USER_ID;
+    next();
+  });
+
+  // Get storage stats
+  app.get('/api/storage', async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const stats = await storage.getStorageStats(userId);
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get storage stats" });
+    }
+  });
+
+  // Folder routes
+  app.get('/api/folders', async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const parentId = req.query.parentId ? Number(req.query.parentId) : null;
+      const folders = await storage.getFoldersByParentId(parentId, userId);
+      res.json(folders);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch folders" });
+    }
+  });
+
+  app.post('/api/folders', async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const validation = insertFolderSchema.safeParse({
+        ...req.body,
+        userId,
+      });
+
+      if (!validation.success) {
+        return res.status(400).json({ message: "Invalid folder data", errors: validation.error.errors });
+      }
+
+      const folder = await storage.createFolder(validation.data);
+      res.status(201).json(folder);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create folder" });
+    }
+  });
+
+  app.patch('/api/folders/:id', async (req: Request, res: Response) => {
+    try {
+      const folderId = Number(req.params.id);
+      const folder = await storage.updateFolder(folderId, req.body);
+      
+      if (!folder) {
+        return res.status(404).json({ message: "Folder not found" });
+      }
+      
+      res.json(folder);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update folder" });
+    }
+  });
+
+  app.delete('/api/folders/:id', async (req: Request, res: Response) => {
+    try {
+      const folderId = Number(req.params.id);
+      const success = await storage.deleteFolder(folderId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Folder not found" });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete folder" });
+    }
+  });
+
+  // File routes
+  app.get('/api/files', async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const folderId = req.query.folderId ? Number(req.query.folderId) : null;
+      const files = await storage.getFilesByFolderId(folderId, userId);
+      res.json(files);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch files" });
+    }
+  });
+
+  app.get('/api/files/recent', async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const limit = req.query.limit ? Number(req.query.limit) : 8;
+      const recentFiles = await storage.getRecentFiles(userId, limit);
+      res.json(recentFiles);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch recent files" });
+    }
+  });
+
+  app.get('/api/files/shared', async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const sharedFiles = await storage.getSharedFiles(userId);
+      res.json(sharedFiles);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch shared files" });
+    }
+  });
+
+  app.post('/api/upload', upload.array('files'), async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const folderId = req.body.folderId ? Number(req.body.folderId) : null;
+      const uploadedFiles = req.files as Express.Multer.File[];
+
+      if (!uploadedFiles || uploadedFiles.length === 0) {
+        return res.status(400).json({ message: "No files uploaded" });
+      }
+
+      const savedFiles = [];
+
+      for (const file of uploadedFiles) {
+        const fileData = {
+          name: file.originalname,
+          type: file.mimetype,
+          size: file.size,
+          path: file.path,
+          folderId,
+          userId,
+          isShared: false,
+        };
+
+        const validation = insertFileSchema.safeParse(fileData);
+        if (!validation.success) {
+          continue; // Skip invalid files
+        }
+
+        const savedFile = await storage.createFile(validation.data);
+        savedFiles.push(savedFile);
+      }
+
+      res.status(201).json(savedFiles);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to upload files" });
+    }
+  });
+
+  app.get('/api/files/:id', async (req: Request, res: Response) => {
+    try {
+      const fileId = Number(req.params.id);
+      const file = await storage.getFileById(fileId);
+      
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      
+      res.json(file);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch file" });
+    }
+  });
+
+  app.patch('/api/files/:id', async (req: Request, res: Response) => {
+    try {
+      const fileId = Number(req.params.id);
+      const file = await storage.updateFile(fileId, req.body);
+      
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      
+      res.json(file);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update file" });
+    }
+  });
+
+  app.delete('/api/files/:id', async (req: Request, res: Response) => {
+    try {
+      const fileId = Number(req.params.id);
+      const file = await storage.getFileById(fileId);
+      
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      
+      // Delete the physical file
+      try {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      } catch (err) {
+        console.error("Error deleting file:", err);
+      }
+      
+      const success = await storage.deleteFile(fileId);
+      if (!success) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete file" });
+    }
+  });
+
+  app.get('/api/download/:id', async (req: Request, res: Response) => {
+    try {
+      const fileId = Number(req.params.id);
+      const file = await storage.getFileById(fileId);
+      
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      
+      if (!fs.existsSync(file.path)) {
+        return res.status(404).json({ message: "File not found on disk" });
+      }
+      
+      res.download(file.path, file.name);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to download file" });
+    }
+  });
+
+  return httpServer;
+}

@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    
+    --card: 240 3% 12%;
+    --card-foreground: 0 0% 100%;
+    
+    --popover: 240 3% 12%;
+    --popover-foreground: 0 0% 100%;
+    
+    --primary: 210 100% 52%;
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 240 2% 12%;
+    --secondary-foreground: 0 0% 100%;
+    
+    --muted: 240 3% 18%;
+    --muted-foreground: 0 0% 70%;
+    
+    --accent: 210 100% 52%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --success: 142 70% 49%;
+    --warning: 33 100% 50%;
+    
+    --border: 240 3% 18%;
+    --input: 240 3% 18%;
+    --ring: 210 100% 52%;
+    
+    --radius: 0.75rem;
+
+    --chart-1: 210 100% 52%;
+    --chart-2: 142 70% 49%;
+    --chart-3: 33 100% 50%;
+    --chart-4: 0 84% 60%;
+    --chart-5: 270 60% 60%;
+    
+    --sidebar-background: 240 3% 12%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 210 100% 52%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 100% 52%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 240 3% 18%;
+    --sidebar-ring: 210 100% 52%;
+  }
+  
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply font-sans antialiased bg-background text-foreground scrollbar-thin scrollbar-thumb-muted scrollbar-track-secondary;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .scrollbar-thumb-muted::-webkit-scrollbar-thumb {
+    @apply bg-muted rounded-full;
+  }
+  
+  .scrollbar-track-secondary::-webkit-scrollbar-track {
+    @apply bg-secondary rounded-full;
+  }
+}
+
+/* Animation classes */
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.slide-up {
+  animation: slideUp 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
