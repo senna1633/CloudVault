@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Files from "@/pages/files";
+import AnimationsPage from "@/pages/animations";
 import AppShell from "@/components/layout/AppShell";
 import { FilePreviewModal } from "./components/modals/FilePreviewModal";
 import { NewFolderModal } from "./components/modals/NewFolderModal";
@@ -18,6 +19,7 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/files" component={Files} />
         <Route path="/files/:folderId" component={Files} />
+        <Route path="/animations" component={AnimationsPage} />
         <Route component={NotFound} />
       </Switch>
     </AppShell>
