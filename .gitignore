@@ -1,6 +1,52 @@
-node_modules
-dist
+# Node.js
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+build/
+
+# Dependency directories
 .DS_Store
-server/public
-vite.config.ts.*
-*.tar.gz
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE files
+.vscode/
+.idea/
+
+# Drizzle ORM
+migrations/meta/
+
+# Uploads
+downloads/
+uploads/
+
+# Miscellaneous
+*.swp
+*.swo
+*.bak
+*.tmp
+*.temp
+*.old
+
+# Generated files
+*.tsbuildinfo
+
+# Tailwind
+postcss.config.js
+tailwind.config.ts
+
+# Ignore generated assets
+attached_assets/
+*.png

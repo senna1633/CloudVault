@@ -7,6 +7,17 @@ import {
 
 // Interface for storage operations
 import session from "express-session";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const UPLOADS_DIR = path.resolve(__dirname, "../uploads");
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR);
+}
 
 export interface IStorage {
   // User operations
@@ -141,12 +152,18 @@ export class MemStorage implements IStorage {
   // File operations
   async createFile(insertFile: InsertFile): Promise<File> {
     const id = this.fileIdCounter++;
-    const now = new Date();
-    const file: File = { 
-      ...insertFile, 
+    const now = new Date().toISOString();
+    const filePath = path.join(UPLOADS_DIR, `${id}-${insertFile.name}`);
+
+    // Simulate file creation (in a real app, you'd save the file content here)
+    fs.writeFileSync(filePath, "");
+
+    const file: File = {
+      ...insertFile,
       id,
+      path: filePath,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     };
     this.files.set(id, file);
     return file;
@@ -165,7 +182,7 @@ export class MemStorage implements IStorage {
   async getRecentFiles(userId: number, limit: number = 8): Promise<File[]> {
     return Array.from(this.files.values())
       .filter(file => file.userId === userId)
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .sort((a, b) => new Date(b.updatedAt!).getTime() - new Date(a.updatedAt!).getTime())
       .slice(0, limit);
   }
   
@@ -182,13 +199,21 @@ export class MemStorage implements IStorage {
     const updatedFile = { 
       ...file, 
       ...data,
-      updatedAt: new Date()
+      updatedAt: new Date().toISOString()
     };
     this.files.set(id, updatedFile);
     return updatedFile;
   }
   
   async deleteFile(id: number): Promise<boolean> {
+    const file = this.files.get(id);
+    if (!file) return false;
+
+    // Delete the file from the local file system
+    if (fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
+    }
+
     return this.files.delete(id);
   }
   

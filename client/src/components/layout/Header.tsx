@@ -11,12 +11,15 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useFileContext } from "@/contexts/FileContext";
 import Sidebar from "./Sidebar";
+import { useAuth } from "@/hooks/use-auth";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 type HeaderProps = {
   title: string;
 };
 
 export default function Header({ title }: HeaderProps) {
+  const { user, logoutMutation } = useAuth();
   const [location] = useLocation();
   const params = useParams();
   const { 
@@ -76,9 +79,27 @@ export default function Header({ title }: HeaderProps) {
             <Bell className="h-5 w-5 text-muted-foreground" />
           </Button>
           
-          <Avatar className="h-8 w-8 bg-accent">
-            <AvatarFallback>JS</AvatarFallback>
-          </Avatar>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Avatar className="h-8 w-8 bg-accent cursor-pointer">
+                <AvatarFallback>{user ? user.username[0].toUpperCase() : "?"}</AvatarFallback>
+              </Avatar>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {user ? (
+                <>
+                  <DropdownMenuItem disabled>
+                    Logged in as <strong>{user.username}</strong>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => logoutMutation.mutate()}>Logout</DropdownMenuItem>
+                </>
+              ) : (
+                <DropdownMenuItem asChild>
+                  <Link href="/auth">Login</Link>
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       

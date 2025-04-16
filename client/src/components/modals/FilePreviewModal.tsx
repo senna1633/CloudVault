@@ -32,7 +32,13 @@ export function FilePreviewModal() {
   };
   
   const renderPreview = () => {
-    if (!selectedFile) return null;
+    if (!selectedFile) {
+      return (
+        <div className="bg-muted rounded-xl p-8 flex flex-col items-center justify-center h-full">
+          <p className="text-muted-foreground mt-4 mb-4">No file selected for preview.</p>
+        </div>
+      );
+    }
     
     // For image files
     if (selectedFile.type.startsWith('image/')) {
@@ -71,17 +77,17 @@ export function FilePreviewModal() {
     );
   };
   
-  if (!selectedFile) return null;
-  
   return (
     <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
       <DialogContent className="bg-secondary max-w-4xl w-full max-h-[90vh] flex flex-col">
         <DialogHeader className="flex items-center justify-between p-6 border-b border-border">
-          <DialogTitle className="text-xl font-medium">{selectedFile.name}</DialogTitle>
+          <DialogTitle className="text-xl font-medium">{selectedFile ? selectedFile.name : "No File Selected"}</DialogTitle>
           <div className="flex items-center space-x-2">
-            <Button variant="ghost" size="icon" onClick={handleDownload}>
-              <Download className="h-5 w-5 text-muted-foreground" />
-            </Button>
+            {selectedFile && (
+              <Button variant="ghost" size="icon" onClick={handleDownload}>
+                <Download className="h-5 w-5 text-muted-foreground" />
+              </Button>
+            )}
             <Button variant="ghost" size="icon">
               <Share2 className="h-5 w-5 text-muted-foreground" />
             </Button>
@@ -96,14 +102,16 @@ export function FilePreviewModal() {
         </div>
         
         <DialogFooter className="p-4 border-t border-border flex items-center justify-between">
-          <div>
-            <div className="text-sm text-muted-foreground">
-              Last modified: {formatDate(selectedFile.updatedAt)}
+          {selectedFile && (
+            <div>
+              <div className="text-sm text-muted-foreground">
+                Last modified: {selectedFile.updatedAt ? formatDate(selectedFile.updatedAt) : "Unknown"}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Size: {formatFileSize(selectedFile.size)}
+              </div>
             </div>
-            <div className="text-sm text-muted-foreground">
-              Size: {formatFileSize(selectedFile.size)}
-            </div>
-          </div>
+          )}
           <Button variant="outline" onClick={() => setShowPreviewModal(false)}>
             Close
           </Button>

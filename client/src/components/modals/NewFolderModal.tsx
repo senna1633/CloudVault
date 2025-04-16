@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useFileContext } from "@/contexts/FileContext";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
 
 const folderSchema = z.object({
   name: z.string().min(1, "Folder name is required"),
@@ -44,6 +45,7 @@ const folderColors = [
 
 export function NewFolderModal() {
   const params = useParams();
+  const { user } = useAuth();
   const { showNewFolderModal, setShowNewFolderModal } = useFileContext();
   const { toast } = useToast();
   const [selectedColor, setSelectedColor] = useState("#0A84FF");
@@ -61,6 +63,7 @@ export function NewFolderModal() {
       return apiRequest("POST", "/api/folders", {
         ...data,
         parentId: params.folderId ? Number(params.folderId) : null,
+        userId: user?.id, // Include userId from authenticated user
       });
     },
     onSuccess: () => {

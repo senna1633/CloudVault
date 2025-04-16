@@ -7,6 +7,18 @@ import path from "path";
 import fs from "fs";
 import { z } from "zod";
 import { insertFolderSchema, insertFileSchema } from "@shared/schema";
+import { log } from "./vite"; // Assuming a logging utility exists
+import type { Multer } from "multer";
+import type { Request as MulterRequest } from "express";
+
+// Extend Express namespace to include Multer types
+declare global {
+  namespace Express {
+    interface Request {
+      files?: Multer.File[];
+    }
+  }
+}
 
 // Authentication middleware
 const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
@@ -22,13 +34,13 @@ if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
-// Configure multer for file uploads
+// Fix implicit 'any' types in multer configuration
 const upload = multer({
   storage: multer.diskStorage({
-    destination: function(req, file, cb) {
+    destination: function (req: MulterRequest, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) {
       cb(null, UPLOADS_DIR);
     },
-    filename: function(req, file, cb) {
+    filename: function (req: MulterRequest, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
       const ext = path.extname(file.originalname);
       cb(null, uniqueSuffix + ext);
@@ -70,21 +82,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enhanced error handling for folder creation
   app.post('/api/folders', async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).userId;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized: User not logged in" });
+      }
+
       const validation = insertFolderSchema.safeParse({
         ...req.body,
         userId,
       });
 
       if (!validation.success) {
+        log(`Validation error: ${JSON.stringify(validation.error.errors)}`, "api/folders");
         return res.status(400).json({ message: "Invalid folder data", errors: validation.error.errors });
       }
 
       const folder = await storage.createFolder(validation.data);
       res.status(201).json(folder);
     } catch (error) {
+      const err = error as Error;
+      log(`Error creating folder: ${err.message}`, "api/folders");
       res.status(500).json({ message: "Failed to create folder" });
     }
   });
@@ -152,9 +172,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enhanced error handling for file upload
   app.post('/api/upload', upload.array('files'), async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).userId;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized: User not logged in" });
+      }
+
       const folderId = req.body.folderId ? Number(req.body.folderId) : null;
       const uploadedFiles = req.files as Express.Multer.File[];
 
@@ -177,6 +202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const validation = insertFileSchema.safeParse(fileData);
         if (!validation.success) {
+          log(`File validation error: ${JSON.stringify(validation.error.errors)}`, "api/upload");
           continue; // Skip invalid files
         }
 
@@ -186,6 +212,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(201).json(savedFiles);
     } catch (error) {
+      const err = error as Error;
+      log(`Error uploading files: ${err.message}`, "api/upload");
       res.status(500).json({ message: "Failed to upload files" });
     }
   });

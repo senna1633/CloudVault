@@ -1,37 +1,38 @@
-import { pgTable, text, serial, integer, boolean, timestamp, json } from "drizzle-orm/pg-core";
+import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey(), // auto-increment is implicit
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
 });
 
-export const folders = pgTable("folders", {
-  id: serial("id").primaryKey(),
+export const folders = sqliteTable("folders", {
+  id: integer("id").primaryKey(),
   name: text("name").notNull(),
   color: text("color").default("#0A84FF"),
   parentId: integer("parent_id").references(() => folders.id),
-  userId: integer("user_id").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
-export const files = pgTable("files", {
-  id: serial("id").primaryKey(),
+export const files = sqliteTable("files", {
+  id: integer("id").primaryKey(),
   name: text("name").notNull(),
   type: text("type").notNull(),
   size: integer("size").notNull(),
   path: text("path").notNull(),
   folderId: integer("folder_id").references(() => folders.id),
-  userId: integer("user_id").references(() => users.id),
-  isShared: boolean("is_shared").default(false),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  isShared: integer("is_shared").default(0),
   sharedBy: text("shared_by"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
-// Insert schemas
+// Insert Schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -77,5 +78,5 @@ export type FileWithMeta = File & {
 export type StorageStats = {
   usedSpace: number; // in bytes
   totalSpace: number; // in bytes
-  percentUsed: number; // 0-100
+  percentUsed: number; // 0–100
 };
