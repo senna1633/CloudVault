@@ -74,9 +74,9 @@ import createMemoryStore from "memorystore";
 const MemoryStore = createMemoryStore(session);
 
 export class JsonStorage implements IStorage {
-  private users: User[];
-  private folders: Folder[];
-  private files: File[];
+  protected users: User[];
+  protected folders: Folder[];
+  protected files: File[];
   public sessionStore: session.Store;
 
   constructor() {
@@ -96,15 +96,15 @@ export class JsonStorage implements IStorage {
     });
   }
 
-  private saveUsers() {
+  protected saveUsers() {
     writeJsonFile(USERS_FILE, this.users);
   }
 
-  private saveFolders() {
+  protected saveFolders() {
     writeJsonFile(FOLDERS_FILE, this.folders);
   }
 
-  private saveFiles() {
+  protected saveFiles() {
     writeJsonFile(FILES_FILE, this.files);
   }
 
@@ -128,7 +128,13 @@ export class JsonStorage implements IStorage {
   // Folder operations
   async createFolder(insertFolder: InsertFolder): Promise<Folder> {
     const id = this.folders.length + 1;
-    const folder: Folder = { ...insertFolder, id, createdAt: new Date().toISOString() };
+    const folder: Folder = {
+      ...insertFolder,
+      id,
+      createdAt: new Date().toISOString(),
+      color: insertFolder.color || "#0A84FF",
+      parentId: insertFolder.parentId || null
+    };
     this.folders.push(folder);
     this.saveFolders();
     return folder;
@@ -180,24 +186,30 @@ export class JsonStorage implements IStorage {
 
   // File operations
   async createFile(insertFile: InsertFile): Promise<File> {
+    const { name, size, type, userId, path, folderId = null } = insertFile;
+
+    // Generate a new file ID
     const id = this.files.length + 1;
-    const userDir = path.join(UPLOADS_DIR, `user_${insertFile.userId}`);
-    if (!fs.existsSync(userDir)) {
-      fs.mkdirSync(userDir, { recursive: true });
-    }
 
-    const filePath = path.join(userDir, `${id}-${insertFile.name}`);
-    fs.writeFileSync(filePath, ""); // Simulate file creation
-
+    // Create the file record
     const file: File = {
-      ...insertFile,
       id,
-      path: filePath,
+      name,
+      size,
+      type,
+      path,
+      userId,
+      folderId,
+      isShared: 0,
+      sharedBy: null,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
+
+    // Add to the files array and save
     this.files.push(file);
     this.saveFiles();
+
     return file;
   }
 
@@ -268,7 +280,7 @@ const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "application/pdf", "text/
 
 export class EnhancedJsonStorage extends JsonStorage {
   async createFile(insertFile: InsertFile): Promise<File> {
-    const { name, size, type, userId, folderId } = insertFile;
+    const { name, size, type, userId, folderId = null } = insertFile;
 
     // Validate file size
     if (size > MAX_FILE_SIZE) {
@@ -297,19 +309,22 @@ export class EnhancedJsonStorage extends JsonStorage {
     const uniqueFileName = `${Date.now()}-${Math.random().toString(36).substring(2)}${fileExtension}`;
     const filePath = path.join(folderDir, uniqueFileName);
 
-    // Simulate file creation (in a real scenario, the file would be moved here)
-    fs.writeFileSync(filePath, "");
-
-    // Add metadata
+    // Create the file record with all required fields
     const file: File = {
-      ...insertFile,
       id: this.files.length + 1,
+      name,
+      type,
+      size,
       path: filePath,
+      userId,
+      folderId,
+      isShared: 0,
+      sharedBy: null,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      mimeType: mime.getType(filePath) || "unknown",
+      updatedAt: new Date().toISOString()
     };
 
+    // Add to the files array and save
     this.files.push(file);
     this.saveFiles();
     return file;

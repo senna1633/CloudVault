@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, Redirect } from "wouter";
+import { useLocation } from "wouter";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -28,12 +28,12 @@ const registerSchema = insertUserSchema.extend({
 
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState<"login" | "register">("login");
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const { user, loginMutation, registerMutation } = useAuth();
 
-  // Redirect if user is already logged in
+  // Redirect logic
   if (user) {
-    return <Redirect to="/" />;
+    setLocation("/");
   }
 
   const loginForm = useForm<z.infer<typeof loginSchema>>({

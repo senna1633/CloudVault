@@ -1,8 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
+import multer from "multer";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
-import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { z } from "zod";
@@ -17,23 +17,10 @@ declare global {
     }
     interface Request {
       user?: User;
-      files?: { [fieldname: string]: MulterFile[] } | MulterFile[] | undefined;
-    }
-    interface MulterFile {
-      fieldname: string;
-      originalname: string;
-      encoding: string;
-      mimetype: string;
-      size: number;
-      destination: string;
-      filename: string;
-      path: string;
-      buffer?: Buffer;
+      files?: { [fieldname: string]: Multer.File[]; } | Multer.File[] | undefined;
     }
   }
 }
-  
-
 
 // Authentication middleware
 const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
@@ -57,19 +44,16 @@ if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
-// Fix implicit 'any' types in multer configuration
+// Fix Multer configuration types
 const upload = multer({
   storage: multer.diskStorage({
-    destination: function (req: Request, file: MulterFile, cb: (error: Error | null, destination: string) => void) {
-      cb(null, UPLOADS_DIR);
-    },
-    filename: function (req: Request, file: MulterFile, cb: (error: Error | null, filename: string) => void) {
+    destination: UPLOADS_DIR,
+    filename: (req, file, cb) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
       const ext = path.extname(file.originalname);
       cb(null, uniqueSuffix + ext);
     }
-  }),
-  // 🚫 No `limits` = No file size restriction
+  })
 });
 
 const DEFAULT_USER_ID = 1; // Using the demo user
@@ -202,13 +186,12 @@ if (!userId) return res.status(401).json({ message: "Unauthorized" });
         return res.status(401).json({ message: "Unauthorized: User not logged in" });
       }
 
-      const folderId = req.body.folderId ? Number(req.body.folderId) : null;
       const uploadedFiles = req.files as Express.Multer.File[];
-
       if (!uploadedFiles || uploadedFiles.length === 0) {
         return res.status(400).json({ message: "No files uploaded" });
       }
 
+      const folderId = req.body.folderId ? Number(req.body.folderId) : null;
       const savedFiles = [];
 
       for (const file of uploadedFiles) {
@@ -219,17 +202,21 @@ if (!userId) return res.status(401).json({ message: "Unauthorized" });
           path: file.path,
           folderId,
           userId,
-          isShared: false,
+          isShared: 0,
+          sharedBy: null
         };
 
-        const validation = insertFileSchema.safeParse(fileData);
-        if (!validation.success) {
-          log(`File validation error: ${JSON.stringify(validation.error.errors)}`, "api/upload");
-          continue; // Skip invalid files
+        try {
+          const savedFile = await storage.createFile(fileData);
+          savedFiles.push(savedFile);
+        } catch (err) {
+          console.error(`Failed to save file ${file.originalname}:`, err);
+          // Continue with next file
         }
+      }
 
-        const savedFile = await storage.createFile(validation.data);
-        savedFiles.push(savedFile);
+      if (savedFiles.length === 0) {
+        return res.status(400).json({ message: "No files were successfully saved" });
       }
 
       res.status(201).json(savedFiles);

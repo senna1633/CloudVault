@@ -14,6 +14,10 @@ import { UploadProgressModal } from "./components/modals/UploadProgressModal";
 import { FileProvider } from "./contexts/FileContext";
 import { AuthProvider } from "./hooks/use-auth";
 import { ProtectedRoute } from "./lib/protected-route";
+import PhotosPage from "@/pages/photos";
+import SharedPage from "@/pages/shared";
+import RecentPage from "@/pages/recent";
+import TrashPage from "@/pages/trash";
 
 function Router() {
   return (
@@ -31,6 +35,26 @@ function Router() {
       <ProtectedRoute path="/files/:folderId" component={() => (
         <AppShell>
           <Files />
+        </AppShell>
+      )} />
+      <ProtectedRoute path="/photos" component={() => (
+        <AppShell>
+          <PhotosPage />
+        </AppShell>
+      )} />
+      <ProtectedRoute path="/shared" component={() => (
+        <AppShell>
+          <SharedPage />
+        </AppShell>
+      )} />
+      <ProtectedRoute path="/recent" component={() => (
+        <AppShell>
+          <RecentPage />
+        </AppShell>
+      )} />
+      <ProtectedRoute path="/trash" component={() => (
+        <AppShell>
+          <TrashPage />
         </AppShell>
       )} />
       <ProtectedRoute path="/animations" component={() => (

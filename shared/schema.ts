@@ -3,8 +3,9 @@ import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Define tables with explicit types
 export const users = sqliteTable("users", {
-  id: integer("id").primaryKey(), // auto-increment is implicit
+  id: integer("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
 });
@@ -13,7 +14,7 @@ export const folders = sqliteTable("folders", {
   id: integer("id").primaryKey(),
   name: text("name").notNull(),
   color: text("color").default("#0A84FF"),
-  parentId: integer("parent_id").references(() => folders.id),
+  parentId: integer("parent_id").references((): any => folders.id),
   userId: integer("user_id").references(() => users.id).notNull(),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
