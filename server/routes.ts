@@ -8,17 +8,32 @@ import fs from "fs";
 import { z } from "zod";
 import { insertFolderSchema, insertFileSchema } from "@shared/schema";
 import { log } from "./vite"; // Assuming a logging utility exists
-import type { Multer } from "multer";
-import type { Request as MulterRequest } from "express";
 
 // Extend Express namespace to include Multer types
 declare global {
   namespace Express {
+    interface User {
+      id: number;
+    }
     interface Request {
-      files?: Multer.File[];
+      user?: User;
+      files?: { [fieldname: string]: MulterFile[] } | MulterFile[] | undefined;
+    }
+    interface MulterFile {
+      fieldname: string;
+      originalname: string;
+      encoding: string;
+      mimetype: string;
+      size: number;
+      destination: string;
+      filename: string;
+      path: string;
+      buffer?: Buffer;
     }
   }
 }
+  
+
 
 // Authentication middleware
 const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
@@ -26,6 +41,14 @@ const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
     return next();
   }
   res.status(401).json({ message: "You must be logged in to access this resource" });
+};
+
+// Ensure `userId` is always a number
+const getUserId = (req: Request): number => {
+  if (!req.user || typeof req.user.id !== 'number') {
+    throw new Error("Unauthorized: User not logged in");
+  }
+  return req.user.id;
 };
 
 // Ensure uploads directory exists
@@ -37,18 +60,16 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 // Fix implicit 'any' types in multer configuration
 const upload = multer({
   storage: multer.diskStorage({
-    destination: function (req: MulterRequest, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) {
+    destination: function (req: Request, file: MulterFile, cb: (error: Error | null, destination: string) => void) {
       cb(null, UPLOADS_DIR);
     },
-    filename: function (req: MulterRequest, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) {
+    filename: function (req: Request, file: MulterFile, cb: (error: Error | null, filename: string) => void) {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
       const ext = path.extname(file.originalname);
       cb(null, uniqueSuffix + ext);
     }
   }),
-  limits: {
-    fileSize: 1024 * 1024 * 1024, // 1GB file size limit (effectively unlimited for local usage)
-  }
+  // 🚫 No `limits` = No file size restriction
 });
 
 const DEFAULT_USER_ID = 1; // Using the demo user
@@ -73,7 +94,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Folder routes
   app.get('/api/folders', async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).userId;
+      const userId = req.user?.id;
+if (!userId) return res.status(401).json({ message: "Unauthorized" });
       const parentId = req.query.parentId ? Number(req.query.parentId) : null;
       const folders = await storage.getFoldersByParentId(parentId, userId);
       res.json(folders);
@@ -142,7 +164,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // File routes
   app.get('/api/files', async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).userId;
+      const userId = getUserId(req);
       const folderId = req.query.folderId ? Number(req.query.folderId) : null;
       const files = await storage.getFilesByFolderId(folderId, userId);
       res.json(files);
@@ -153,7 +175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/files/recent', async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).userId;
+      const userId = getUserId(req);
       const limit = req.query.limit ? Number(req.query.limit) : 8;
       const recentFiles = await storage.getRecentFiles(userId, limit);
       res.json(recentFiles);
@@ -164,7 +186,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/files/shared', async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).userId;
+      const userId = getUserId(req);
       const sharedFiles = await storage.getSharedFiles(userId);
       res.json(sharedFiles);
     } catch (error) {

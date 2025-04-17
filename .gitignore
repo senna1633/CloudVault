@@ -50,3 +50,6 @@ tailwind.config.ts
 # Ignore generated assets
 attached_assets/
 *.png
+
+# Ignore data directory containing sensitive user data
+data/
