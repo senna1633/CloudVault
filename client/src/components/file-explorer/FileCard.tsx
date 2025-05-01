@@ -1,6 +1,6 @@
-import { motion } from "framer-motion";
-import { MoreVertical } from "lucide-react";
 import { useState } from "react";
+import { motion } from "framer-motion";
+import { Download, MoreVertical, Trash2, UndoIcon } from "lucide-react";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -8,11 +8,12 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { useFileContext } from "@/contexts/FileContext";
 import { FileIcon } from "@/components/ui/file-icons";
+import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+import { useFileContext } from "@/contexts/FileContext";
+
 import type { FileWithMeta } from "@shared/schema";
 
 interface FileCardProps {
@@ -21,18 +22,30 @@ interface FileCardProps {
 }
 
 export function FileCard({ file, className }: FileCardProps) {
-  const { setSelectedFile, setShowPreviewModal } = useFileContext();
   const { toast } = useToast();
+  const { setSelectedFile, setShowPreviewModal } = useFileContext();
   const [isDeleting, setIsDeleting] = useState(false);
-  
-  const handlePreview = () => {
+  const isImage = file.type.startsWith('image/');
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setSelectedFile(file);
     setShowPreviewModal(true);
   };
-  
-  const handleDownload = async () => {
+
+  const handleDownload = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     try {
-      window.open(`/api/download/${file.id}`, '_blank');
+      const response = await fetch(`/api/files/${file.id}/download`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
     } catch (error) {
       toast({
         title: "Download Failed",
@@ -41,8 +54,61 @@ export function FileCard({ file, className }: FileCardProps) {
       });
     }
   };
-  
-  const handleDelete = async () => {
+
+  const handleMoveToTrash = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isDeleting) return;
+    
+    try {
+      setIsDeleting(true);
+      await apiRequest('PATCH', `/api/files/${file.id}`, {
+        isDeleted: true,
+        deletedAt: new Date().toISOString()
+      });
+      toast({
+        title: "Moved to Trash",
+        description: `${file.name} has been moved to trash.`
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/files'] });
+    } catch (error) {
+      toast({
+        title: "Action Failed",
+        description: "Could not move the file to trash.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleRestore = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isDeleting) return;
+    
+    try {
+      setIsDeleting(true);
+      await apiRequest('PATCH', `/api/files/${file.id}`, {
+        isDeleted: false,
+        deletedAt: null
+      });
+      toast({
+        title: "File Restored",
+        description: `${file.name} has been restored.`
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/files'] });
+    } catch (error) {
+      toast({
+        title: "Restore Failed",
+        description: "Could not restore the file.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handlePermanentDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (isDeleting) return;
     
     try {
@@ -50,11 +116,9 @@ export function FileCard({ file, className }: FileCardProps) {
       await apiRequest('DELETE', `/api/files/${file.id}`);
       toast({
         title: "File Deleted",
-        description: `${file.name} has been deleted.`
+        description: `${file.name} has been permanently deleted.`
       });
-      // Invalidate files query to refresh the list
       queryClient.invalidateQueries({ queryKey: ['/api/files'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/files/recent'] });
     } catch (error) {
       toast({
         title: "Delete Failed",
@@ -65,31 +129,36 @@ export function FileCard({ file, className }: FileCardProps) {
       setIsDeleting(false);
     }
   };
-  
+
   return (
     <motion.div
-      layoutId={`file-${file.id}`}
-      className={`bg-secondary rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all ${className}`}
+      className={`bg-secondary rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer ${className}`}
       whileHover={{ y: -4, transition: { duration: 0.2 } }}
-      onClick={handlePreview}
+      onClick={handleClick}
     >
-      <div className="h-32 bg-muted flex items-center justify-center p-2 overflow-hidden">
-        {file.type.startsWith('image/') && file.preview ? (
-          <img 
-            src={file.preview} 
-            alt={file.name} 
-            className="object-cover h-full w-full rounded-lg" 
+      <div className="aspect-square relative bg-muted/50">
+        {isImage ? (
+          <img
+            src={`/api/files/${file.id}/download`}
+            alt={file.name}
+            className="w-full h-full object-cover"
           />
         ) : (
-          <FileIcon fileType={file.type} fileName={file.name} size="lg" />
+          <div className="w-full h-full flex items-center justify-center">
+            <FileIcon fileType={file.type} fileName={file.name} size="xl" />
+          </div>
+        )}
+        
+        {file.isDeleted && (
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+            <Trash2 className="h-8 w-8 text-muted-foreground" />
+          </div>
         )}
       </div>
       
       <div className="p-4">
-        <div className="flex items-center justify-between">
-          <h4 className="font-medium text-foreground truncate" title={file.name}>
-            {file.name}
-          </h4>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-medium truncate" title={file.name}>{file.name}</h3>
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -97,23 +166,45 @@ export function FileCard({ file, className }: FileCardProps) {
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownload(); }}>
-                Download
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); handleDelete(); }}>
-                Delete
-              </DropdownMenuItem>
+            <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
+              {file.isDeleted ? (
+                <>
+                  <DropdownMenuItem onClick={handleRestore}>
+                    <UndoIcon className="mr-2 h-4 w-4" />
+                    Restore
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    className="text-destructive" 
+                    onClick={handlePermanentDelete}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Permanently
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <>
+                  <DropdownMenuItem onClick={handleDownload}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    className="text-destructive" 
+                    onClick={handleMoveToTrash}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Move to Trash
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
         
-        <div className="flex items-center justify-between mt-2">
-          <span className="text-xs text-muted-foreground">
+        <div className="flex justify-between items-center text-xs text-muted-foreground">
+          <span>{file.formattedSize}</span>
+          <span>
+            {file.isDeleted ? 'Deleted ' : 'Modified '}
             {file.formattedDate}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {file.formattedSize}
           </span>
         </div>
       </div>

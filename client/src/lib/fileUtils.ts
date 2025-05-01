@@ -2,43 +2,42 @@
  * Formats a file size in bytes to a human-readable string
  */
 export function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 Bytes';
-  
+  if (bytes === 0) return '0 B';
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
 
 /**
  * Formats a date to a relative time string (e.g., "2 hours ago")
  */
-export function formatDate(dateString: string | Date): string {
-  const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+export function formatDate(date: string | Date): string {
+  const d = new Date(date);
   const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSecs = Math.round(diffMs / 1000);
-  const diffMins = Math.round(diffSecs / 60);
-  const diffHours = Math.round(diffMins / 60);
-  const diffDays = Math.round(diffHours / 24);
-  const diffWeeks = Math.round(diffDays / 7);
-  const diffMonths = Math.round(diffDays / 30);
-  
-  if (diffSecs < 60) {
+  const diff = now.getTime() - d.getTime();
+  const seconds = diff / 1000;
+  const minutes = seconds / 60;
+  const hours = minutes / 60;
+  const days = hours / 24;
+
+  if (seconds < 60) {
     return 'Just now';
-  } else if (diffMins < 60) {
-    return `${diffMins} ${diffMins === 1 ? 'minute' : 'minutes'} ago`;
-  } else if (diffHours < 24) {
-    return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
-  } else if (diffDays < 7) {
-    return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
-  } else if (diffWeeks < 4) {
-    return `${diffWeeks} ${diffWeeks === 1 ? 'week' : 'weeks'} ago`;
-  } else if (diffMonths < 12) {
-    return `${diffMonths} ${diffMonths === 1 ? 'month' : 'months'} ago`;
+  } else if (minutes < 60) {
+    const m = Math.floor(minutes);
+    return `${m} ${m === 1 ? 'minute' : 'minutes'} ago`;
+  } else if (hours < 24) {
+    const h = Math.floor(hours);
+    return `${h} ${h === 1 ? 'hour' : 'hours'} ago`;
+  } else if (days < 7) {
+    const d = Math.floor(days);
+    return `${d} ${d === 1 ? 'day' : 'days'} ago`;
   } else {
-    return date.toLocaleDateString();
+    return d.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
   }
 }
 
@@ -46,8 +45,26 @@ export function formatDate(dateString: string | Date): string {
  * Determines if a file is an image
  */
 export function isImageFile(type: string): boolean {
-  return type.startsWith('image/');
+  const imageTypes = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/bmp',
+    'image/tiff',
+    'image/svg+xml',
+    'image/avif'
+  ];
+  return imageTypes.includes(type.toLowerCase());
 }
+
+/**
+ * Gets supported image extensions
+ */
+export const SUPPORTED_IMAGE_EXTENSIONS = [
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'tif', 'svg', 'avif'
+];
 
 /**
  * Gets the file extension from a filename
@@ -74,4 +91,26 @@ export function createFilePreview(file: File): Promise<string> {
       resolve('');
     }
   });
+}
+
+/**
+ * Gets the file type from a filename
+ */
+export function getFileTypeFromName(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  
+  if (SUPPORTED_IMAGE_EXTENSIONS.includes(ext)) return 'image';
+  const documentExts = ['pdf', 'doc', 'docx', 'txt', 'md'];
+  const spreadsheetExts = ['xls', 'xlsx', 'csv'];
+  const presentationExts = ['ppt', 'pptx'];
+  const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz'];
+  const codeExts = ['js', 'ts', 'jsx', 'tsx', 'html', 'css', 'json', 'py', 'java'];
+  
+  if (documentExts.includes(ext)) return 'document';
+  if (spreadsheetExts.includes(ext)) return 'spreadsheet';
+  if (presentationExts.includes(ext)) return 'presentation';
+  if (archiveExts.includes(ext)) return 'archive';
+  if (codeExts.includes(ext)) return 'code';
+  
+  return 'other';
 }

@@ -9,7 +9,8 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogFooter
+  DialogFooter,
+  DialogDescription
 } from "@/components/ui/dialog";
 import {
   Form,
@@ -94,6 +95,9 @@ export function NewFolderModal() {
       <DialogContent className="bg-secondary sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl font-medium">Create New Folder</DialogTitle>
+          <DialogDescription>
+            Create a new folder to organize your files. Choose a name and color for your folder.
+          </DialogDescription>
         </DialogHeader>
         
         <Form {...form}>

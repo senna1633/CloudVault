@@ -12,6 +12,10 @@ import path from "path";
 import { fileURLToPath } from "url";
 import mime from "mime";
 
+import { eq, and, or, isNull } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import Database from "better-sqlite3";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -73,6 +77,9 @@ import createMemoryStore from "memorystore";
 
 const MemoryStore = createMemoryStore(session);
 
+const sqlite = new Database("local-database.sqlite");
+const db = drizzle(sqlite);
+
 export class JsonStorage implements IStorage {
   protected users: User[];
   protected folders: Folder[];
@@ -80,6 +87,17 @@ export class JsonStorage implements IStorage {
   public sessionStore: session.Store;
 
   constructor() {
+    // Initialize empty arrays if files don't exist
+    if (!fs.existsSync(USERS_FILE)) {
+      writeJsonFile(USERS_FILE, []);
+    }
+    if (!fs.existsSync(FOLDERS_FILE)) {
+      writeJsonFile(FOLDERS_FILE, []);
+    }
+    if (!fs.existsSync(FILES_FILE)) {
+      writeJsonFile(FILES_FILE, []);
+    }
+
     this.users = readJsonFile<User[]>(USERS_FILE);
     this.folders = readJsonFile<Folder[]>(FOLDERS_FILE);
     this.files = readJsonFile<File[]>(FILES_FILE);
@@ -89,11 +107,13 @@ export class JsonStorage implements IStorage {
       checkPeriod: 86400000 // 24 hours
     });
 
-    // Initialize with a demo user - will be replaced by registration
-    this.createUser({
-      username: "demo",
-      password: "password"
-    });
+    // Initialize with a demo user if no users exist
+    if (this.users.length === 0) {
+      this.createUser({
+        username: "demo",
+        password: "password"
+      });
+    }
   }
 
   protected saveUsers() {
@@ -129,11 +149,14 @@ export class JsonStorage implements IStorage {
   async createFolder(insertFolder: InsertFolder): Promise<Folder> {
     const id = this.folders.length + 1;
     const folder: Folder = {
-      ...insertFolder,
       id,
-      createdAt: new Date().toISOString(),
+      name: insertFolder.name,
+      parentId: insertFolder.parentId || null,
+      userId: insertFolder.userId,
       color: insertFolder.color || "#0A84FF",
-      parentId: insertFolder.parentId || null
+      createdAt: new Date().toISOString(),
+      isDeleted: false,
+      deletedAt: null
     };
     this.folders.push(folder);
     this.saveFolders();
@@ -144,11 +167,15 @@ export class JsonStorage implements IStorage {
     return this.folders.find(folder => folder.id === id);
   }
 
-  async getFoldersByParentId(parentId: number | null, userId: number): Promise<Folder[]> {
-    return this.folders.filter(folder => folder.parentId === parentId && folder.userId === userId);
+  async getFoldersByParentId(parentId: number | null, userId: number, includeDeleted = false): Promise<Folder[]> {
+    return this.folders.filter(folder => 
+      folder.userId === userId && 
+      folder.parentId === parentId && 
+      (includeDeleted || !folder.isDeleted)
+    );
   }
 
-  async updateFolder(id: number, data: Partial<Folder>): Promise<Folder | undefined> {
+  async updateFolder(id: number, data: Partial<Folder> & { isDeleted?: number, deletedAt?: string | null }): Promise<Folder | undefined> {
     const folderIndex = this.folders.findIndex(folder => folder.id === id);
     if (folderIndex === -1) return undefined;
 
@@ -186,30 +213,31 @@ export class JsonStorage implements IStorage {
 
   // File operations
   async createFile(insertFile: InsertFile): Promise<File> {
-    const { name, size, type, userId, path, folderId = null } = insertFile;
+    const { name, size, type, userId, folderId = null } = insertFile;
 
     // Generate a new file ID
     const id = this.files.length + 1;
 
-    // Create the file record
+    // Create the file record with all required fields
     const file: File = {
       id,
       name,
-      size,
       type,
-      path,
+      size,
+      path: path.join(UPLOADS_DIR, `${Date.now()}-${Math.random().toString(36).substring(2)}`),
       userId,
       folderId,
-      isShared: 0,
+      isShared: false,
       sharedBy: null,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      isDeleted: false,
+      deletedAt: null
     };
 
     // Add to the files array and save
     this.files.push(file);
     this.saveFiles();
-
     return file;
   }
 
@@ -217,8 +245,12 @@ export class JsonStorage implements IStorage {
     return this.files.find(file => file.id === id);
   }
 
-  async getFilesByFolderId(folderId: number | null, userId: number): Promise<File[]> {
-    return this.files.filter(file => file.folderId === folderId && file.userId === userId);
+  async getFilesByFolderId(folderId: number | null, userId: number, includeDeleted = false): Promise<File[]> {
+    return this.files.filter(file => 
+      file.userId === userId && 
+      file.folderId === folderId && 
+      (includeDeleted || !file.isDeleted)
+    );
   }
 
   async getRecentFiles(userId: number, limit: number = 8): Promise<File[]> {
@@ -232,7 +264,7 @@ export class JsonStorage implements IStorage {
     return this.files.filter(file => file.userId === userId && file.isShared);
   }
 
-  async updateFile(id: number, data: Partial<File>): Promise<File | undefined> {
+  async updateFile(id: number, data: Partial<File> & { isDeleted?: number, deletedAt?: string | null }): Promise<File | undefined> {
     const fileIndex = this.files.findIndex(file => file.id === id);
     if (fileIndex === -1) return undefined;
 
@@ -272,6 +304,45 @@ export class JsonStorage implements IStorage {
       totalSpace,
       percentUsed
     };
+  }
+
+  // Get folders in trash
+  async getFoldersInTrash(userId: number): Promise<Folder[]> {
+    return this.folders.filter(folder => 
+      folder.userId === userId && 
+      folder.isDeleted === true
+    );
+  }
+
+  // Get files in trash
+  async getFilesInTrash(userId: number): Promise<File[]> {
+    return this.files.filter(file => 
+      file.userId === userId && 
+      file.isDeleted === true
+    );
+  }
+
+  // Empty trash - permanently delete all items
+  async emptyTrash(userId: number): Promise<void> {
+    // Delete all files in trash
+    const filesToDelete = this.files.filter(file => 
+      file.userId === userId && 
+      file.isDeleted === true
+    );
+    
+    for (const file of filesToDelete) {
+      await this.deleteFile(file.id);
+    }
+    
+    // Delete all folders in trash
+    const foldersToDelete = this.folders.filter(folder => 
+      folder.userId === userId && 
+      folder.isDeleted === true
+    );
+    
+    for (const folder of foldersToDelete) {
+      await this.deleteFolder(folder.id);
+    }
   }
 }
 
@@ -318,10 +389,12 @@ export class EnhancedJsonStorage extends JsonStorage {
       path: filePath,
       userId,
       folderId,
-      isShared: 0,
+      isShared: false,
       sharedBy: null,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      isDeleted: false,
+      deletedAt: null
     };
 
     // Add to the files array and save

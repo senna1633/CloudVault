@@ -4,7 +4,8 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogFooter
+  DialogFooter,
+  DialogDescription
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { FileIcon } from "@/components/ui/file-icons";
@@ -81,7 +82,12 @@ export function FilePreviewModal() {
     <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
       <DialogContent className="bg-secondary max-w-4xl w-full max-h-[90vh] flex flex-col">
         <DialogHeader className="flex items-center justify-between p-6 border-b border-border">
-          <DialogTitle className="text-xl font-medium">{selectedFile ? selectedFile.name : "No File Selected"}</DialogTitle>
+          <div>
+            <DialogTitle className="text-xl font-medium">{selectedFile ? selectedFile.name : "No File Selected"}</DialogTitle>
+            <DialogDescription>
+              {selectedFile ? `Preview ${selectedFile.type.split('/')[0]} file` : "No file selected for preview"}
+            </DialogDescription>
+          </div>
           <div className="flex items-center space-x-2">
             {selectedFile && (
               <Button variant="ghost" size="icon" onClick={handleDownload}>

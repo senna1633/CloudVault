@@ -16,6 +16,8 @@ export const folders = sqliteTable("folders", {
   color: text("color").default("#0A84FF"),
   parentId: integer("parent_id").references((): any => folders.id),
   userId: integer("user_id").references(() => users.id).notNull(),
+  isDeleted: integer("is_deleted", { mode: "boolean" }).default(false),
+  deletedAt: text("deleted_at"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -27,35 +29,18 @@ export const files = sqliteTable("files", {
   path: text("path").notNull(),
   folderId: integer("folder_id").references(() => folders.id),
   userId: integer("user_id").references(() => users.id).notNull(),
-  isShared: integer("is_shared").default(0),
+  isDeleted: integer("is_deleted", { mode: "boolean" }).default(false),
+  deletedAt: text("deleted_at"),
+  isShared: integer("is_shared", { mode: "boolean" }).default(false),
   sharedBy: text("shared_by"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
 // Insert Schemas
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-});
-
-export const insertFolderSchema = createInsertSchema(folders).pick({
-  name: true,
-  color: true,
-  parentId: true,
-  userId: true,
-});
-
-export const insertFileSchema = createInsertSchema(files).pick({
-  name: true,
-  type: true,
-  size: true,
-  path: true,
-  folderId: true,
-  userId: true,
-  isShared: true,
-  sharedBy: true,
-});
+export const insertUserSchema = createInsertSchema(users);
+export const insertFolderSchema = createInsertSchema(folders);
+export const insertFileSchema = createInsertSchema(files);
 
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;

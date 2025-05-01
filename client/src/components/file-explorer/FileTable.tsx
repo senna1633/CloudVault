@@ -13,6 +13,15 @@ import { useFileContext } from "@/contexts/FileContext";
 import { FileIcon } from "@/components/ui/file-icons";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import type { FileWithMeta } from "@shared/schema";
 
@@ -22,18 +31,28 @@ interface FileTableProps {
 }
 
 export function FileTable({ files, sharedView = false }: FileTableProps) {
-  const { setSelectedFile, setShowPreviewModal } = useFileContext();
   const { toast } = useToast();
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const { setSelectedFile, setShowPreviewModal } = useFileContext();
+  const [selectedFiles, setSelectedFiles] = useState<number[]>([]);
   
-  const handlePreview = (file: FileWithMeta) => {
+  const handleFileClick = (file: FileWithMeta) => {
     setSelectedFile(file);
     setShowPreviewModal(true);
   };
-  
-  const handleDownload = async (file: FileWithMeta) => {
+
+  const handleDownload = async (file: FileWithMeta, e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
-      window.open(`/api/download/${file.id}`, '_blank');
+      const response = await fetch(`/api/files/${file.id}/download`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
     } catch (error) {
       toast({
         title: "Download Failed",
@@ -42,123 +61,166 @@ export function FileTable({ files, sharedView = false }: FileTableProps) {
       });
     }
   };
-  
-  const handleDelete = async (file: FileWithMeta) => {
-    if (deletingId === file.id) return;
-    
+
+  const handleMoveToTrash = async (file: FileWithMeta, e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
-      setDeletingId(file.id);
+      await apiRequest('PATCH', `/api/files/${file.id}`, {
+        isDeleted: true,
+        deletedAt: new Date().toISOString()
+      });
+      toast({
+        title: "Moved to Trash",
+        description: `${file.name} has been moved to trash.`
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/files'] });
+    } catch (error) {
+      toast({
+        title: "Action Failed",
+        description: "Could not move the file to trash.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleRestore = async (file: FileWithMeta, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await apiRequest('PATCH', `/api/files/${file.id}`, {
+        isDeleted: false,
+        deletedAt: null
+      });
+      toast({
+        title: "File Restored",
+        description: `${file.name} has been restored.`
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/files'] });
+    } catch (error) {
+      toast({
+        title: "Restore Failed",
+        description: "Could not restore the file.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handlePermanentDelete = async (file: FileWithMeta, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
       await apiRequest('DELETE', `/api/files/${file.id}`);
       toast({
         title: "File Deleted",
-        description: `${file.name} has been deleted.`
+        description: `${file.name} has been permanently deleted.`
       });
-      // Invalidate files query to refresh the list
       queryClient.invalidateQueries({ queryKey: ['/api/files'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/files/recent'] });
-      if (sharedView) {
-        queryClient.invalidateQueries({ queryKey: ['/api/files/shared'] });
-      }
     } catch (error) {
       toast({
         title: "Delete Failed",
         description: "Could not delete the file.",
         variant: "destructive"
       });
-    } finally {
-      setDeletingId(null);
     }
   };
-  
+
   return (
-    <div className="bg-secondary rounded-xl overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Name</th>
-              {sharedView && (
-                <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Shared By</th>
-              )}
-              <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Date</th>
-              <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">Size</th>
-              <th className="px-6 py-4 text-right text-sm font-medium text-muted-foreground">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <AnimatePresence>
-              {files.map(file => (
-                <motion.tr
-                  key={file.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="border-b border-border hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => handlePreview(file)}
-                >
-                  <td className="px-6 py-4">
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 rounded flex items-center justify-center mr-3">
-                        <FileIcon fileType={file.type} fileName={file.name} />
-                      </div>
-                      <span className="font-medium text-foreground">{file.name}</span>
-                    </div>
-                  </td>
-                  
-                  {sharedView && (
-                    <td className="px-6 py-4">
-                      <div className="flex items-center">
-                        <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center text-xs mr-2">
-                          {file.sharedBy?.substring(0, 2) || 'US'}
-                        </div>
-                        <span className="text-muted-foreground">{file.sharedBy || 'Unknown'}</span>
-                      </div>
-                    </td>
-                  )}
-                  
-                  <td className="px-6 py-4 text-muted-foreground">
-                    {file.formattedDate}
-                  </td>
-                  
-                  <td className="px-6 py-4 text-muted-foreground">
-                    {file.formattedSize}
-                  </td>
-                  
-                  <td className="px-6 py-4 text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-accent hover:text-accent/80 transition-colors mr-2"
-                      onClick={(e) => { e.stopPropagation(); handleDownload(file); }}
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                    
+    <div className="rounded-lg border bg-card">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-12">
+              <Checkbox
+                checked={selectedFiles.length === files.length}
+                onCheckedChange={(checked) => {
+                  setSelectedFiles(checked ? files.map(f => f.id) : []);
+                }}
+                aria-label="Select all files"
+              />
+            </TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>Modified</TableHead>
+            <TableHead>Size</TableHead>
+            <TableHead className="w-[100px]"></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <AnimatePresence initial={false}>
+            {files.map((file) => (
+              <motion.tr
+                key={file.id}
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className="group hover:bg-muted/50 cursor-pointer"
+                onClick={() => handleFileClick(file)}
+              >
+                <TableCell>
+                  <Checkbox
+                    checked={selectedFiles.includes(file.id)}
+                    onCheckedChange={(checked) => {
+                      setSelectedFiles(
+                        checked
+                          ? [...selectedFiles, file.id]
+                          : selectedFiles.filter(id => id !== file.id)
+                      );
+                    }}
+                    aria-label={`Select ${file.name}`}
+                  />
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <FileIcon fileType={file.type} fileName={file.name} size="sm" />
+                    <span className="font-medium">{file.name}</span>
+                  </div>
+                </TableCell>
+                <TableCell>{file.formattedDate}</TableCell>
+                <TableCell>{file.formattedSize}</TableCell>
+                <TableCell>
+                  <div className="flex justify-end">
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                        >
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => handleDownload(file, e)}>
+                          <Download className="mr-2 h-4 w-4" />
                           Download
                         </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="text-destructive" 
-                          onClick={(e) => { e.stopPropagation(); handleDelete(file); }}
-                        >
-                          Delete
-                        </DropdownMenuItem>
+                        {file.isDeleted ? (
+                          <>
+                            <DropdownMenuItem onClick={(e) => handleRestore(file, e)}>
+                              Restore
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="text-destructive"
+                              onClick={(e) => handlePermanentDelete(file, e)}
+                            >
+                              Delete Permanently
+                            </DropdownMenuItem>
+                          </>
+                        ) : (
+                          <DropdownMenuItem 
+                            className="text-destructive"
+                            onClick={(e) => handleMoveToTrash(file, e)}
+                          >
+                            Move to Trash
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  </td>
-                </motion.tr>
-              ))}
-            </AnimatePresence>
-          </tbody>
-        </table>
-      </div>
+                  </div>
+                </TableCell>
+              </motion.tr>
+            ))}
+          </AnimatePresence>
+        </TableBody>
+      </Table>
     </div>
   );
 }

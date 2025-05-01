@@ -87,10 +87,10 @@ export default function Sidebar() {
     <aside className="hidden md:flex md:w-64 flex-col bg-secondary border-r border-border h-screen">
       <div className="p-6">
         <Link href="/">
-          <a className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 cursor-pointer">
             <Cloud className="h-6 w-6 text-accent" />
             <span className="text-2xl font-bold">CloudVault</span>
-          </a>
+          </div>
         </Link>
       </div>
       
@@ -99,8 +99,8 @@ export default function Sidebar() {
           {navItems.map((item) => (
             <li key={item.name}>
               <Link href={item.path}>
-                <a className={cn(
-                  "flex items-center px-4 py-3 rounded-xl transition-colors group",
+                <div className={cn(
+                  "flex items-center px-4 py-3 rounded-xl transition-colors group cursor-pointer",
                   item.active 
                     ? "bg-muted/50 text-foreground" 
                     : "text-foreground/70 hover:bg-muted/30"
@@ -116,7 +116,7 @@ export default function Sidebar() {
                     {item.icon}
                   </motion.span>
                   <span>{item.name}</span>
-                </a>
+                </div>
               </Link>
             </li>
           ))}

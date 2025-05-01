@@ -94,8 +94,10 @@ export default function Header({ title }: HeaderProps) {
                   <DropdownMenuItem onClick={() => logoutMutation.mutate()}>Logout</DropdownMenuItem>
                 </>
               ) : (
-                <DropdownMenuItem asChild>
-                  <Link href="/auth">Login</Link>
+                <DropdownMenuItem>
+                  <Link href="/auth">
+                    <div className="w-full">Login</div>
+                  </Link>
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -107,23 +109,23 @@ export default function Header({ title }: HeaderProps) {
         <div className="flex items-center justify-between px-6 py-3">
           <div className="flex items-center text-sm">
             <Link href="/">
-              <a className="text-muted-foreground hover:text-foreground transition-colors">
+              <div className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
                 Home
-              </a>
+              </div>
             </Link>
             
             {path.length > 0 && (
               <>
                 <ChevronRight className="h-4 w-4 mx-2 text-muted-foreground" />
                 <Link href="/files">
-                  <a className={cn(
-                    "transition-colors",
+                  <div className={cn(
+                    "transition-colors cursor-pointer",
                     path.length === 1 
                       ? "text-foreground" 
                       : "text-muted-foreground hover:text-foreground"
                   )}>
                     Files
-                  </a>
+                  </div>
                 </Link>
               </>
             )}

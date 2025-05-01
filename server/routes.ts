@@ -202,7 +202,7 @@ if (!userId) return res.status(401).json({ message: "Unauthorized" });
           path: file.path,
           folderId,
           userId,
-          isShared: 0,
+          isShared: false,
           sharedBy: null
         };
 
@@ -224,6 +224,40 @@ if (!userId) return res.status(401).json({ message: "Unauthorized" });
       const err = error as Error;
       log(`Error uploading files: ${err.message}`, "api/upload");
       res.status(500).json({ message: "Failed to upload files" });
+    }
+  });
+
+  // File upload handler
+  app.post("/api/files", upload.single("file"), async (req: Request, res: Response) => {
+    try {
+      const { folderId } = req.query;
+      const file = req.file;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const fileData = {
+        name: file.originalname,
+        type: file.mimetype,
+        size: file.size,
+        path: file.path,
+        folderId: folderId ? Number(folderId) : null,
+        userId,
+        isShared: false,
+        sharedBy: null
+      };
+
+      const savedFile = await storage.createFile(fileData);
+      res.json(savedFile);
+    } catch (error: any) {
+      console.error("File upload error:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 
@@ -302,6 +336,59 @@ if (!userId) return res.status(401).json({ message: "Unauthorized" });
       res.download(file.path, file.name);
     } catch (error) {
       res.status(500).json({ message: "Failed to download file" });
+    }
+  });
+
+  // Trash management routes
+  app.get('/api/trash', async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const folders = await storage.getFoldersInTrash(userId);
+      const files = await storage.getFilesInTrash(userId);
+      res.json({ folders, files });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch trash items" });
+    }
+  });
+
+  app.delete('/api/trash', async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await storage.emptyTrash(userId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to empty trash" });
+    }
+  });
+
+  // Trash routes
+  app.get('/api/trash/folders', async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const folders = await storage.getFoldersInTrash(userId);
+      res.json(folders);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch folders in trash" });
+    }
+  });
+
+  app.get('/api/trash/files', async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const files = await storage.getFilesInTrash(userId);
+      res.json(files);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch files in trash" });
+    }
+  });
+
+  app.post('/api/trash/empty', async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await storage.emptyTrash(userId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to empty trash" });
     }
   });
 

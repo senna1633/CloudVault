@@ -34,7 +34,8 @@ export default function FileExplorer() {
     queryFn: async () => {
       const res = await fetch(`/api/folders?parentId=${folderId || ''}`);
       if (!res.ok) throw new Error('Failed to fetch folders');
-      return res.json();
+      const data = await res.json();
+      return data.filter((folder: Folder) => !folder.isDeleted);
     },
   });
   
@@ -44,7 +45,8 @@ export default function FileExplorer() {
     queryFn: async () => {
       const res = await fetch(`/api/files?folderId=${folderId || ''}`);
       if (!res.ok) throw new Error('Failed to fetch files');
-      return res.json();
+      const data = await res.json();
+      return data.filter((file: File) => !file.isDeleted);
     },
   });
   
@@ -53,7 +55,7 @@ export default function FileExplorer() {
     ...file,
     extension: file.name.split('.').pop() || '',
     formattedSize: formatFileSize(file.size),
-    formattedDate: formatDate(file.updatedAt)
+    formattedDate: formatDate(file.updatedAt || file.createdAt || new Date().toISOString())
   }));
   
   const isLoading = isFoldersLoading || isFilesLoading;
