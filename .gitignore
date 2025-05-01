@@ -1,5 +1,22 @@
-# Node.js
+# Dependencies
 node_modules/
+.pnp/
+.pnp.js
+
+# Testing
+coverage/
+
+# Production build
+dist/
+build/
+*.tsbuildinfo
+
+# Development
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # Logs
 logs/
@@ -9,47 +26,37 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Build output
-dist/
-build/
+# Runtime data
+local-database.sqlite
+local-database.sqlite-journal
 
-# Dependency directories
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 .DS_Store
 
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# IDE files
-.vscode/
-.idea/
-
-# Drizzle ORM
-migrations/meta/
-
-# Uploads
-downloads/
+# Project specific
 uploads/
+data/
+migrations/meta/
+attached_assets/
+local-database.sqlite
 
-# Miscellaneous
-*.swp
-*.swo
-*.bak
+# Cache and temp files
+.cache/
+.temp/
 *.tmp
 *.temp
+*.bak
 *.old
 
 # Generated files
-*.tsbuildinfo
-
-# Tailwind
-postcss.config.js
-tailwind.config.ts
-
-# Ignore generated assets
-attached_assets/
-*.png
-
-# Ignore data directory containing sensitive user data
-data/
+*.generated.*
+.vercel
+.netlify
