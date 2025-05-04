@@ -214,17 +214,20 @@ export class JsonStorage implements IStorage {
   // File operations
   async createFile(insertFile: InsertFile): Promise<File> {
     const { name, size, type, userId, folderId = null } = insertFile;
-
+  
     // Generate a new file ID
     const id = this.files.length + 1;
-
+  
+    // Get the actual path from the uploaded file (if available)
+    const uploadPath = insertFile.path || path.join(UPLOADS_DIR, `${Date.now()}-${Math.random().toString(36).substring(2)}`);
+  
     // Create the file record with all required fields
     const file: File = {
       id,
       name,
       type,
       size,
-      path: path.join(UPLOADS_DIR, `${Date.now()}-${Math.random().toString(36).substring(2)}`),
+      path: uploadPath, // Store the actual file path from multer
       userId,
       folderId,
       isShared: false,
@@ -234,12 +237,12 @@ export class JsonStorage implements IStorage {
       isDeleted: false,
       deletedAt: null
     };
-
+  
     // Add to the files array and save
     this.files.push(file);
     this.saveFiles();
     return file;
-  }
+  }  
 
   async getFileById(id: number): Promise<File | undefined> {
     return this.files.find(file => file.id === id);

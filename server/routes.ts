@@ -179,53 +179,53 @@ if (!userId) return res.status(401).json({ message: "Unauthorized" });
   });
 
   // Enhanced error handling for file upload
-  app.post('/api/upload', upload.array('files'), async (req: Request, res: Response) => {
-    try {
-      const userId = req.user?.id;
-      if (!userId) {
-        return res.status(401).json({ message: "Unauthorized: User not logged in" });
-      }
-
-      const uploadedFiles = req.files as Express.Multer.File[];
-      if (!uploadedFiles || uploadedFiles.length === 0) {
-        return res.status(400).json({ message: "No files uploaded" });
-      }
-
-      const folderId = req.body.folderId ? Number(req.body.folderId) : null;
-      const savedFiles = [];
-
-      for (const file of uploadedFiles) {
-        const fileData = {
-          name: file.originalname,
-          type: file.mimetype,
-          size: file.size,
-          path: file.path,
-          folderId,
-          userId,
-          isShared: false,
-          sharedBy: null
-        };
-
-        try {
-          const savedFile = await storage.createFile(fileData);
-          savedFiles.push(savedFile);
-        } catch (err) {
-          console.error(`Failed to save file ${file.originalname}:`, err);
-          // Continue with next file
-        }
-      }
-
-      if (savedFiles.length === 0) {
-        return res.status(400).json({ message: "No files were successfully saved" });
-      }
-
-      res.status(201).json(savedFiles);
-    } catch (error) {
-      const err = error as Error;
-      log(`Error uploading files: ${err.message}`, "api/upload");
-      res.status(500).json({ message: "Failed to upload files" });
+app.post('/api/upload', upload.array('files'), async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized: User not logged in" });
     }
-  });
+
+    const uploadedFiles = req.files as Express.Multer.File[];
+    if (!uploadedFiles || uploadedFiles.length === 0) {
+      return res.status(400).json({ message: "No files uploaded" });
+    }
+
+    const folderId = req.body.folderId ? Number(req.body.folderId) : null;
+    const savedFiles = [];
+
+    for (const file of uploadedFiles) {
+      const fileData = {
+        name: file.originalname,
+        type: file.mimetype,
+        size: file.size,
+        path: file.path, // This is the actual path where multer stored the file
+        folderId,
+        userId,
+        isShared: false,
+        sharedBy: null
+      };
+
+      try {
+        const savedFile = await storage.createFile(fileData);
+        savedFiles.push(savedFile);
+      } catch (err) {
+        console.error(`Failed to save file ${file.originalname}:`, err);
+        // Continue with next file
+      }
+    }
+
+    if (savedFiles.length === 0) {
+      return res.status(400).json({ message: "No files were successfully saved" });
+    }
+
+    res.status(201).json(savedFiles);
+  } catch (error) {
+    const err = error as Error;
+    log(`Error uploading files: ${err.message}`, "api/upload");
+    res.status(500).json({ message: "Failed to upload files" });
+  }
+});
 
   // File upload handler
   app.post("/api/files", upload.single("file"), async (req: Request, res: Response) => {
@@ -320,24 +320,26 @@ if (!userId) return res.status(401).json({ message: "Unauthorized" });
     }
   });
 
-  app.get('/api/download/:id', async (req: Request, res: Response) => {
-    try {
-      const fileId = Number(req.params.id);
-      const file = await storage.getFileById(fileId);
-      
-      if (!file) {
-        return res.status(404).json({ message: "File not found" });
-      }
-      
-      if (!fs.existsSync(file.path)) {
-        return res.status(404).json({ message: "File not found on disk" });
-      }
-      
-      res.download(file.path, file.name);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to download file" });
+app.get('/api/download/:id', async (req: Request, res: Response) => {
+  try {
+    const fileId = Number(req.params.id);
+    const file = await storage.getFileById(fileId);
+    
+    if (!file) {
+      return res.status(404).json({ message: "File not found" });
     }
-  });
+    
+    if (!fs.existsSync(file.path)) {
+      console.error(`File not found on disk: ${file.path}`);
+      return res.status(404).json({ message: "File not found on disk" });
+    }
+    
+    res.download(file.path, file.name);
+  } catch (error) {
+    console.error("Download error:", error);
+    res.status(500).json({ message: "Failed to download file" });
+  }
+});
 
   // Trash management routes
   app.get('/api/trash', async (req: Request, res: Response) => {

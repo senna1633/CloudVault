@@ -25,6 +25,7 @@ export function FileCard({ file, className }: FileCardProps) {
   const { toast } = useToast();
   const { setSelectedFile, setShowPreviewModal } = useFileContext();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const isImage = file.type.startsWith('image/');
 
   const handleClick = (e: React.MouseEvent) => {
@@ -36,17 +37,15 @@ export function FileCard({ file, className }: FileCardProps) {
   const handleDownload = async (e?: React.MouseEvent) => {
     e?.stopPropagation();
     try {
-      const response = await fetch(`/api/files/${file.id}/download`);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      // Create a direct download link
       const a = document.createElement('a');
-      a.href = url;
+      a.href = `/api/download/${file.id}`;
       a.download = file.name;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
     } catch (error) {
+      console.error('Download error:', error);
       toast({
         title: "Download Failed",
         description: "Could not download the file.",
@@ -137,11 +136,16 @@ export function FileCard({ file, className }: FileCardProps) {
       onClick={handleClick}
     >
       <div className="aspect-square relative bg-muted/50">
-        {isImage ? (
+        {isImage && !imageError ? (
           <img
-            src={`/api/files/${file.id}/download`}
+            src={`/api/download/${file.id}?t=${Date.now()}`} // Added cache-busting parameter
             alt={file.name}
             className="w-full h-full object-cover"
+            onError={() => {
+              console.error(`Image loading failed for file ID: ${file.id}`);
+              setImageError(true);
+            }}
+            loading="lazy" // Use lazy loading for better performance
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
