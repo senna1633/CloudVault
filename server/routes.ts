@@ -466,6 +466,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+  // Photos route - Get all image files
+  app.get('/api/photos', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const allFiles = await storage.getRecentFiles(userId, 100);
+      const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff', 'image/svg+xml', 'image/avif'];
+      const photos = allFiles.filter(file => 
+        imageTypes.includes(file.type.toLowerCase()) && !file.isDeleted
+      );
+      res.json(photos);
+    } catch (error) {
+      console.error("Error fetching photos:", error);
+      res.status(500).json({ message: "Failed to fetch photos" });
+    }
+  });
+
   // Trash management routes - Require authentication
   app.get('/api/trash', isAuthenticated, async (req: Request, res: Response) => {
     try {

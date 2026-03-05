@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Cloud, Lock, User, UserPlus, LogIn } from "lucide-react";
+import { Cloud, Lock, User, UserPlus, LogIn, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { insertUserSchema } from "@shared/schema";
 
@@ -28,13 +28,14 @@ const registerSchema = insertUserSchema.extend({
 
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState<"login" | "register">("login");
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const { user, loginMutation, registerMutation } = useAuth();
 
-  // Redirect logic
-  if (user) {
-    setLocation("/");
-  }
+  useEffect(() => {
+    if (user) {
+      setLocation("/");
+    }
+  }, [user, setLocation]);
 
   const loginForm = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -67,24 +68,26 @@ export default function AuthPage() {
     });
   };
 
+  if (user) return null;
+
   return (
     <div className="min-h-screen flex items-stretch bg-background">
       {/* Left column: Auth forms */}
-      <div className="w-full lg:w-1/2 p-6 md:p-12 flex flex-col justify-center">
+      <div className="w-full lg:w-1/2 p-4 sm:p-8 md:p-12 flex flex-col justify-center">
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+          transition={{ duration: 0.4 }}
           className="mb-8 flex items-center justify-center lg:justify-start"
         >
-          <Cloud className="h-8 w-8 mr-2 text-accent" />
-          <h1 className="text-3xl font-bold">CloudVault</h1>
+          <Cloud className="h-7 w-7 mr-2 text-primary" />
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">CloudVault</h1>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
           className="w-full max-w-md mx-auto lg:mx-0"
         >
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "login" | "register")}>
@@ -95,7 +98,7 @@ export default function AuthPage() {
             
             <TabsContent value="login">
               <Form {...loginForm}>
-                <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-6">
+                <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="flex flex-col gap-5">
                   <FormField
                     control={loginForm.control}
                     name="username"
@@ -156,7 +159,7 @@ export default function AuthPage() {
             
             <TabsContent value="register">
               <Form {...registerForm}>
-                <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-6">
+                <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="flex flex-col gap-5">
                   <FormField
                     control={registerForm.control}
                     name="username"
@@ -241,64 +244,46 @@ export default function AuthPage() {
       </div>
       
       {/* Right column: Hero section */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-accent to-accent/80 p-12 flex-col justify-center relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-primary p-12 flex-col justify-center relative overflow-hidden">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.3 }}
-          className="z-10 text-white max-w-lg"
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="z-10 max-w-lg"
         >
-          <h2 className="text-4xl font-bold mb-6">Your Personal Cloud Storage</h2>
-          <p className="text-xl mb-8 text-white/90">
+          <h2 className="text-3xl xl:text-4xl font-bold mb-6 text-primary-foreground text-balance">
+            Your Personal Cloud Storage
+          </h2>
+          <p className="text-lg mb-8 text-primary-foreground/85 leading-relaxed">
             Store, share, and access your files from anywhere with CloudVault's secure 
-            local cloud storage solution. Unlimited storage for all your important files.
+            cloud storage solution. Unlimited storage for all your important files.
           </p>
-          <div className="space-y-4">
-            <div className="flex items-center">
-              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center mr-4">
-                <Lock className="h-5 w-5 text-white" />
+          <div className="flex flex-col gap-5">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-primary-foreground/15 flex items-center justify-center shrink-0">
+                <Lock className="h-5 w-5 text-primary-foreground" />
               </div>
               <div>
-                <h3 className="font-medium">Secure Local Storage</h3>
-                <p className="text-white/80">Keep your files safely stored locally, with no external dependencies</p>
+                <h3 className="font-medium text-primary-foreground">Secure Storage</h3>
+                <p className="text-sm text-primary-foreground/75">Keep your files safely stored with no external dependencies</p>
               </div>
             </div>
-            <div className="flex items-center">
-              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center mr-4">
-                <Cloud className="h-5 w-5 text-white" />
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-primary-foreground/15 flex items-center justify-center shrink-0">
+                <Cloud className="h-5 w-5 text-primary-foreground" />
               </div>
               <div>
-                <h3 className="font-medium">Unlimited Storage</h3>
-                <p className="text-white/80">No limits on how much you can store in your local vault</p>
+                <h3 className="font-medium text-primary-foreground">Unlimited Storage</h3>
+                <p className="text-sm text-primary-foreground/75">No limits on how much you can store in your vault</p>
               </div>
             </div>
           </div>
         </motion.div>
         
-        {/* Decorative elements */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full filter blur-3xl -translate-y-1/2 translate-x-1/3" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/10 rounded-full filter blur-3xl translate-y-1/2 -translate-x-1/3" />
+        {/* Decorative background elements */}
+        <div className="absolute top-0 right-0 w-80 h-80 bg-primary-foreground/5 rounded-full -translate-y-1/2 translate-x-1/3" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-primary-foreground/5 rounded-full translate-y-1/2 -translate-x-1/3" />
       </div>
     </div>
-  );
-}
-
-// Loading component for form buttons
-function Loader2(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-    </svg>
   );
 }

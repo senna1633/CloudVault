@@ -10,11 +10,6 @@ import session from "express-session";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import mime from "mime";
-
-import { eq, and, or, isNull } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import Database from "better-sqlite3";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -76,9 +71,6 @@ export interface IStorage {
 import createMemoryStore from "memorystore";
 
 const MemoryStore = createMemoryStore(session);
-
-const sqlite = new Database("local-database.sqlite");
-const db = drizzle(sqlite);
 
 export class JsonStorage implements IStorage {
   protected users: User[];

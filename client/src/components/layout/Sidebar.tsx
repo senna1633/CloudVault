@@ -1,21 +1,16 @@
-import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { motion } from "framer-motion";
-import { Cloud, Home, Folder, Image, Share2, Clock, Trash2, Sparkles } from "lucide-react";
+import { Cloud, Home, Folder, Image, Share2, Clock, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import type { StorageStats } from "@shared/schema";
 
 const formatSize = (bytes: number): string => {
   if (bytes === 0) return "0 Bytes";
-
   const k = 1024;
   const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
@@ -31,7 +26,7 @@ export default function Sidebar() {
 
   const { data: storageStats } = useQuery<StorageStats>({
     queryKey: ["/api/storage"],
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 60 * 1000,
   });
 
   const navItems: NavItem[] = [
@@ -78,58 +73,59 @@ export default function Sidebar() {
   const totalSpace = formatSize(storageStats?.totalSpace || 0);
 
   return (
-    <aside className="hidden md:flex md:w-64 flex-col bg-secondary border-r border-border h-screen sticky top-0">
-      <div className="p-6">
+    <aside className="flex flex-col bg-secondary border-r border-border h-screen w-full md:w-64">
+      {/* Logo */}
+      <div className="p-5 md:p-6">
         <Link href="/">
-          <div className="flex items-center space-x-2 cursor-pointer">
-            <Cloud className="h-6 w-6 text-accent" />
-            <span className="text-2xl font-bold">LocalVault</span>
-          </div>
+          <span className="flex items-center gap-2 cursor-pointer">
+            <Cloud className="h-6 w-6 text-primary shrink-0" />
+            <span className="text-xl font-bold text-foreground">CloudVault</span>
+          </span>
         </Link>
       </div>
 
-      <nav className="flex-1 px-4 py-2">
-        <ul className="space-y-1">
+      {/* Navigation */}
+      <nav className="flex-1 px-3 py-1 overflow-y-auto">
+        <ul className="flex flex-col gap-0.5">
           {navItems.map((item) => (
             <li key={item.name}>
               <Link href={item.path}>
-                <div className={cn(
-                  "flex items-center px-4 py-3 rounded-xl transition-colors group cursor-pointer",
+                <span className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors cursor-pointer",
                   item.active
-                    ? "bg-muted/50 text-foreground"
-                    : "text-foreground/70 hover:bg-muted/30"
+                    ? "bg-primary/10 text-foreground"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                 )}>
-                  <motion.span
+                  <span
                     className={cn(
-                      "mr-3 transition-colors",
-                      item.active ? "text-accent" : "text-foreground/70 group-hover:text-foreground/80"
+                      "shrink-0 transition-colors",
+                      item.active ? "text-primary" : ""
                     )}
-                    initial={{ scale: 1 }}
-                    whileHover={{ scale: 1.1 }}
                   >
                     {item.icon}
-                  </motion.span>
-                  <span>{item.name}</span>
-                </div>
+                  </span>
+                  <span className="text-sm font-medium">{item.name}</span>
+                </span>
               </Link>
             </li>
           ))}
         </ul>
       </nav>
 
-      <div className="p-4 border-t border-border">
-        <div className="bg-muted rounded-xl p-4">
+      {/* Storage widget */}
+      <div className="p-3 border-t border-border">
+        <div className="bg-muted/50 rounded-lg p-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-muted-foreground">Storage</span>
+            <span className="text-xs font-medium text-muted-foreground">Storage</span>
             <span className="text-xs text-muted-foreground">
-              {usedPercent.toFixed(1)}% used
+              {usedPercent.toFixed(1)}%
             </span>
           </div>
-          <Progress value={usedPercent} className="h-2 bg-background" />
-          <div className="mt-3 text-xs text-muted-foreground">
-            {usedSpace} of {totalSpace} used
+          <Progress value={usedPercent} className="h-1.5 bg-background" />
+          <div className="mt-2 text-xs text-muted-foreground">
+            {usedSpace} of {totalSpace}
           </div>
-          <Button variant="link" size="sm" className="mt-2 px-0 text-accent hover:text-accent/80">
+          <Button variant="link" size="sm" className="mt-1 px-0 h-auto text-xs text-primary hover:text-primary/80">
             Upgrade Plan
           </Button>
         </div>
