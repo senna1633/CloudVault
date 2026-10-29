@@ -3,11 +3,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Upload, CheckCircle, File } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
-import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion"
+import { motion, AnimatePresence, useMotionValue, useSpring, useReducedMotion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import confetti from "canvas-confetti" // Properly import confetti
 
 export default function UploadCard() {
+  const reduceMotion = useReducedMotion() ?? false
   const [uploadState, setUploadState] = useState<"idle" | "uploading" | "success">("idle")
   const [progress, setProgress] = useState(0)
   const [fileName, setFileName] = useState("document.pdf")
@@ -48,6 +49,8 @@ export default function UploadCard() {
 
   // Confetti effect for success state
   const triggerConfetti = useCallback(() => {
+    if (reduceMotion) return
+
     const canvas = document.createElement("canvas")
     canvas.className = "fixed inset-0 w-full h-full pointer-events-none z-50"
     document.body.appendChild(canvas)
@@ -87,7 +90,7 @@ export default function UploadCard() {
         canvas.parentNode.removeChild(canvas)
       }
     }, 4000)
-  }, [])
+  }, [reduceMotion])
 
   // Simulate upload progress with smooth animation
   const handleUpload = useCallback(() => {
@@ -109,12 +112,12 @@ export default function UploadCard() {
         setTimeout(() => {
           setUploadState("success")
           triggerConfetti()
-        }, 300)
+        }, reduceMotion ? 0 : 150)
       }
     }
 
     requestAnimationFrame(updateProgress)
-  }, [triggerConfetti])
+  }, [reduceMotion, triggerConfetti])
 
   const startAnimation = useCallback(() => {
     handleUpload()
@@ -127,6 +130,8 @@ export default function UploadCard() {
 
   // Track mouse movement for background effect
   useEffect(() => {
+    if (reduceMotion) return
+
     const handleGlobalMouseMove = (e: MouseEvent) => {
       const x = (e.clientX / window.innerWidth) * 100
       const y = (e.clientY / window.innerHeight) * 100
@@ -135,30 +140,30 @@ export default function UploadCard() {
 
     window.addEventListener("mousemove", handleGlobalMouseMove)
     return () => window.removeEventListener("mousemove", handleGlobalMouseMove)
-  }, [])
+  }, [reduceMotion])
 
   // Variants for animations
   const containerVariants = {
-    initial: { opacity: 0, y: 20 },
+    initial: reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 },
     animate: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
+      transition: { duration: reduceMotion ? 0 : 0.35, ease: [0.22, 1, 0.36, 1] },
     },
   }
 
   const stateVariants = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
-    exit: { opacity: 0, y: -20, transition: { duration: 0.3, ease: "easeIn" } },
+    initial: reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0, transition: { duration: reduceMotion ? 0 : 0.22, ease: "easeOut" } },
+    exit: { opacity: reduceMotion ? 1 : 0, y: reduceMotion ? 0 : -8, transition: { duration: reduceMotion ? 0 : 0.16, ease: "easeIn" } },
   }
 
   const successVariants = {
-    initial: { opacity: 0, scale: 0.9 },
+    initial: reduceMotion ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.96 },
     animate: {
       opacity: 1,
       scale: 1,
-      transition: { type: "spring", stiffness: 400, damping: 30 },
+      transition: { type: "spring", stiffness: 400, damping: 30, duration: reduceMotion ? 0 : undefined },
     },
   }
 
@@ -187,7 +192,7 @@ export default function UploadCard() {
               >
                 <motion.div
                   className="w-24 h-24 rounded-full flex items-center justify-center mb-8 relative"
-                  animate={{
+                  animate={reduceMotion ? undefined : {
                     boxShadow: [
                       "0 0 0 0 rgba(59, 130, 246, 0)",
                       "0 0 0 15px rgba(59, 130, 246, 0.1)",
@@ -207,7 +212,7 @@ export default function UploadCard() {
                       className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-500 to-blue-400"
                       style={{
                         transform: "rotate(0deg)",
-                        animation: "gradientSpin 4s linear infinite",
+                        animation: reduceMotion ? "none" : "gradientSpin 4s linear infinite",
                       }}
                     />
                   </div>
@@ -222,11 +227,11 @@ export default function UploadCard() {
                 </p>
 
                 <motion.div
-                  onMouseMove={handleMouseMove}
-                  onMouseLeave={handleMouseLeave}
+                  onMouseMove={reduceMotion ? undefined : handleMouseMove}
+                  onMouseLeave={reduceMotion ? undefined : handleMouseLeave}
                   style={{
-                    x: springX,
-                    y: springY,
+                    x: reduceMotion ? 0 : springX,
+                    y: reduceMotion ? 0 : springY,
                   }}
                 >
                   <Button
@@ -237,7 +242,7 @@ export default function UploadCard() {
                     <span className="relative z-10">Start Animation</span>
                     <motion.span
                       className="absolute inset-0 bg-blue-400 opacity-0 group-hover:opacity-20"
-                      animate={{
+                      animate={reduceMotion ? undefined : {
                         scale: [1, 1.5],
                         opacity: [0, 0.2, 0],
                       }}
@@ -264,7 +269,7 @@ export default function UploadCard() {
                 <div className="flex items-center mb-8">
                   <motion.div
                     className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center mr-5 shadow-lg relative overflow-hidden"
-                    animate={{
+                    animate={reduceMotion ? undefined : {
                       rotate: [0, 3, 0, -3, 0],
                     }}
                     transition={{
@@ -279,7 +284,7 @@ export default function UploadCard() {
                       <div
                         className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 opacity-70"
                         style={{
-                          animation: "borderRotate 4s linear infinite",
+                          animation: reduceMotion ? "none" : "borderRotate 4s linear infinite",
                         }}
                       />
                     </div>
@@ -298,7 +303,7 @@ export default function UploadCard() {
                   <motion.div
                     className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-purple-400 opacity-30 rounded-full"
                     style={{ width: `${progress}%` }}
-                    animate={{
+                    animate={reduceMotion ? undefined : {
                       opacity: [0.3, 0.6, 0.3],
                     }}
                     transition={{
@@ -312,7 +317,7 @@ export default function UploadCard() {
 
                 <div className="flex justify-center mt-8">
                   <motion.div
-                    animate={{
+                    animate={reduceMotion ? undefined : {
                       scale: [1, 1.05, 1],
                     }}
                     transition={{
@@ -327,7 +332,7 @@ export default function UploadCard() {
                       <div className="absolute inset-0 rounded-full border-4 border-slate-700" />
                       <motion.div
                         className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-500"
-                        animate={{ rotate: 360 }}
+                        animate={reduceMotion ? undefined : { rotate: 360 }}
                         transition={{
                           duration: 1.5,
                           repeat: Number.POSITIVE_INFINITY,
@@ -336,7 +341,7 @@ export default function UploadCard() {
                       />
                       <motion.div
                         className="absolute inset-2 rounded-full border-4 border-transparent border-t-purple-500"
-                        animate={{ rotate: -360 }}
+                        animate={reduceMotion ? undefined : { rotate: -360 }}
                         transition={{
                           duration: 2,
                           repeat: Number.POSITIVE_INFINITY,
@@ -359,13 +364,13 @@ export default function UploadCard() {
               >
                 <motion.div
                   className="w-24 h-24 rounded-full flex items-center justify-center mb-8 bg-gradient-to-br from-green-400 to-emerald-500"
-                  initial={{ scale: 0, rotate: -180 }}
+                  initial={reduceMotion ? false : { scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
                   transition={{
                     type: "spring",
                     stiffness: 260,
                     damping: 20,
-                    delay: 0.1,
+                    duration: reduceMotion ? 0 : undefined,
                   }}
                 >
                   <CheckCircle className="h-12 w-12 text-white" strokeWidth={1.5} />
@@ -373,25 +378,25 @@ export default function UploadCard() {
 
                 <motion.h3
                   className="text-2xl font-medium text-white mb-3"
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={reduceMotion ? false : { opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.16 }}
                 >
                   Upload Complete!
                 </motion.h3>
                 <motion.p
                   className="text-sm text-slate-300 text-center mb-10"
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={reduceMotion ? false : { opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.16 }}
                 >
                   Your file has been successfully uploaded
                 </motion.p>
 
                 <motion.div
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={reduceMotion ? false : { opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.16 }}
                 >
                   <Button
                     onClick={resetUpload}

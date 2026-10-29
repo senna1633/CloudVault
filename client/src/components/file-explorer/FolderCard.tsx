@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { MoreVertical, Trash2, UndoIcon } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Folder as FolderIcon } from "lucide-react";
 import type { Folder } from "@shared/schema";
 
 interface FolderCardProps {
@@ -25,10 +26,19 @@ export function FolderCard({ folder, fileCount, className }: FolderCardProps) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
+  const reduceMotion = useReducedMotion();
   
   const handleOpenFolder = () => {
     if (!folder.isDeleted) {
       setLocation(`/files/${folder.id}`);
+    }
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (folder.isDeleted || event.target !== event.currentTarget) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleOpenFolder();
     }
   };
   
@@ -47,6 +57,7 @@ export function FolderCard({ folder, fileCount, className }: FolderCardProps) {
         description: `${folder.name} has been moved to trash.`
       });
       queryClient.invalidateQueries({ queryKey: ['/api/folders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/photos'] });
     } catch (error) {
       toast({
         title: "Action Failed",
@@ -73,6 +84,7 @@ export function FolderCard({ folder, fileCount, className }: FolderCardProps) {
         description: `${folder.name} has been restored.`
       });
       queryClient.invalidateQueries({ queryKey: ['/api/folders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/photos'] });
     } catch (error) {
       toast({
         title: "Restore Failed",
@@ -96,6 +108,7 @@ export function FolderCard({ folder, fileCount, className }: FolderCardProps) {
         description: `${folder.name} has been permanently deleted.`
       });
       queryClient.invalidateQueries({ queryKey: ['/api/folders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/photos'] });
     } catch (error) {
       toast({
         title: "Delete Failed",
@@ -114,53 +127,54 @@ export function FolderCard({ folder, fileCount, className }: FolderCardProps) {
   return (
     <motion.div
       className={cn(
-        "bg-secondary rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all",
+        "group overflow-hidden rounded-xl border border-border/70 bg-card text-card-foreground shadow-sm transition-[border-color,box-shadow] duration-300 hover:border-accent/50 hover:shadow-[0_18px_50px_-24px_hsl(var(--primary)/0.4)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         folder.isDeleted && "opacity-75",
         !folder.isDeleted && "cursor-pointer",
         className
       )}
-      whileHover={!folder.isDeleted ? { y: -4, transition: { duration: 0.2 } } : undefined}
+      whileHover={!folder.isDeleted && !reduceMotion ? { y: -6, scale: 1.018, transition: { type: "spring", stiffness: 280, damping: 18 } } : undefined}
+      whileTap={!folder.isDeleted && !reduceMotion ? { scale: 0.99 } : undefined}
       onClick={handleOpenFolder}
+      onKeyDown={handleKeyDown}
+      role={!folder.isDeleted ? "button" : undefined}
+      tabIndex={!folder.isDeleted ? 0 : undefined}
+      aria-label={!folder.isDeleted ? `Open folder ${folder.name}` : undefined}
+      aria-busy={isDeleting}
     >
-      <div className="p-6 relative">
+      <div className="relative p-4 sm:p-5">
         <div className="flex items-center mb-4">
-          <div 
-            className="w-12 h-12 rounded-xl flex items-center justify-center mr-4" 
-            style={{ backgroundColor: `${folder.color || '#0A84FF'}20` }}
+          <div
+            className={cn(
+              "mr-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl sm:mr-4 sm:h-12 sm:w-12",
+              folder.color ? "" : "bg-accent/10 text-accent"
+            )}
+            style={folder.color ? { backgroundColor: `${folder.color}20` } : undefined}
           >
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              className="h-6 w-6" 
-              style={{ color: folder.color || '#0A84FF' }} 
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" 
+            <span className="flex">
+              <FolderIcon
+                className="h-5 w-5 transition-transform duration-300 group-hover:scale-110 sm:h-6 sm:w-6"
+                style={folder.color ? { color: folder.color } : undefined}
+                aria-hidden="true"
               />
-            </svg>
+            </span>
           </div>
-          <div>
-            <h4 className="font-medium text-foreground">{folder.name}</h4>
+          <div className="min-w-0 flex-1">
+            <h4 className="truncate font-medium text-foreground" title={folder.name}>{folder.name}</h4>
             <p className="text-xs text-muted-foreground">
               {fileCount} {fileCount === 1 ? 'file' : 'files'}
             </p>
           </div>
           
           {folder.isDeleted && (
-            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">
-              <Trash2 className="h-8 w-8 text-muted-foreground" />
+            <div className="absolute inset-0 flex items-center justify-center bg-background/85 backdrop-blur-sm">
+              <Trash2 className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
             </div>
           )}
         </div>
         
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-xs text-muted-foreground">
-            {folder.isDeleted ? 'Deleted' : 'Modified'} {date}
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <span className="truncate text-xs text-muted-foreground">
+            {folder.isDeleted ? 'Deleted' : 'Created'} {date}
           </span>
           
           <DropdownMenu>
@@ -168,7 +182,9 @@ export function FolderCard({ folder, fileCount, className }: FolderCardProps) {
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-accent/10 hover:text-foreground"
+                aria-label={`Actions for ${folder.name}`}
+                disabled={isDeleting}
               >
                 <MoreVertical className="h-4 w-4" />
               </Button>
@@ -176,13 +192,14 @@ export function FolderCard({ folder, fileCount, className }: FolderCardProps) {
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
               {folder.isDeleted ? (
                 <>
-                  <DropdownMenuItem onClick={handleRestore}>
+                  <DropdownMenuItem onClick={handleRestore} disabled={isDeleting}>
                     <UndoIcon className="mr-2 h-4 w-4" />
                     Restore
                   </DropdownMenuItem>
                   <DropdownMenuItem 
                     className="text-destructive"
                     onClick={handlePermanentDelete}
+                    disabled={isDeleting}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete Permanently
@@ -192,6 +209,7 @@ export function FolderCard({ folder, fileCount, className }: FolderCardProps) {
                 <DropdownMenuItem 
                   className="text-destructive"
                   onClick={handleMoveToTrash}
+                  disabled={isDeleting}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Move to Trash

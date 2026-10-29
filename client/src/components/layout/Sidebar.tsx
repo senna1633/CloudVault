@@ -1,12 +1,10 @@
-import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Cloud, Home, Folder, Image, Share2, Clock, Trash2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import type { StorageStats } from "@shared/schema";
 
 const formatSize = (bytes: number): string => {
@@ -26,10 +24,32 @@ type NavItem = {
   active?: boolean;
 };
 
-export default function Sidebar() {
-  const [location] = useLocation();
+type SidebarProps = {
+  mobile?: boolean;
+  onNavigate?: () => void;
+};
 
-  const { data: storageStats } = useQuery<StorageStats>({
+const navListVariants = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.035, delayChildren: 0.04 },
+  },
+};
+
+const navItemVariants = {
+  hidden: { opacity: 0, y: 5 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.18, ease: "easeOut" },
+  },
+};
+
+export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
+  const [location] = useLocation();
+  const shouldReduceMotion = useReducedMotion();
+
+  const { data: storageStats, isLoading, isError } = useQuery<StorageStats>({
     queryKey: ["/api/storage"],
     staleTime: 60 * 1000, // 1 minute
   });
@@ -73,63 +93,81 @@ export default function Sidebar() {
     },
   ];
 
-  const usedPercent = storageStats?.percentUsed || 0;
+  const usedPercent = Math.min(100, Math.max(0, storageStats?.percentUsed || 0));
   const usedSpace = formatSize(storageStats?.usedSpace || 0);
   const totalSpace = formatSize(storageStats?.totalSpace || 0);
 
   return (
-    <aside className="hidden md:flex md:w-64 flex-col bg-secondary border-r border-border h-screen sticky top-0">
-      <div className="p-6">
+    <aside className={cn(
+      "flex flex-col border-r border-sidebar-border bg-[hsl(var(--sidebar-background))]",
+      mobile ? "h-full w-full" : "sticky top-0 hidden h-screen md:flex md:w-64 lg:w-72"
+    )}>
+      <div className="px-5 pb-8 pt-7 lg:px-6">
         <Link href="/">
-          <div className="flex items-center space-x-2 cursor-pointer">
-            <Cloud className="h-6 w-6 text-accent" />
-            <span className="text-2xl font-bold">LocalVault</span>
+          <div className="group flex cursor-pointer items-center gap-3" onClick={onNavigate}>
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent text-accent-foreground shadow-lg shadow-accent/15 transition-transform group-hover:scale-[1.03]">
+              <Cloud className="h-5 w-5" />
+            </span>
+            <span className="text-xl font-semibold tracking-tight text-sidebar-foreground">CloudVault</span>
           </div>
         </Link>
       </div>
 
-      <nav className="flex-1 px-4 py-2">
-        <ul className="space-y-1">
+      <nav aria-label="Workspace navigation" className="flex-1 px-3 py-1">
+        <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Workspace</p>
+        <motion.ul
+          className="space-y-1"
+          variants={shouldReduceMotion ? undefined : navListVariants}
+          initial={shouldReduceMotion ? false : "hidden"}
+          animate="visible"
+        >
           {navItems.map((item) => (
-            <li key={item.name}>
-              <Link href={item.path}>
-                <div className={cn(
-                  "flex items-center px-4 py-3 rounded-xl transition-colors group cursor-pointer",
-                  item.active
-                    ? "bg-muted/50 text-foreground"
-                    : "text-foreground/70 hover:bg-muted/30"
-                )}>
+            <motion.li
+              key={item.name}
+              variants={shouldReduceMotion ? undefined : navItemVariants}
+            >
+              <Link href={item.path} aria-current={item.active ? "page" : undefined}>
+                <div
+                  className={cn(
+                    "group relative flex cursor-pointer items-center rounded-xl px-3.5 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                    item.active
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm shadow-background/30 before:absolute before:inset-y-2.5 before:left-0 before:w-0.5 before:rounded-full before:bg-sidebar-primary"
+                      : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-foreground"
+                  )}
+                  onClick={onNavigate}
+                >
                   <motion.span
                     className={cn(
                       "mr-3 transition-colors",
-                      item.active ? "text-accent" : "text-foreground/70 group-hover:text-foreground/80"
+                      item.active ? "text-sidebar-primary" : "text-muted-foreground transition-colors group-hover:text-sidebar-foreground"
                     )}
-                    initial={{ scale: 1 }}
-                    whileHover={{ scale: 1.1 }}
+                    whileHover={shouldReduceMotion ? undefined : { scale: 1.08 }}
+                    whileTap={shouldReduceMotion ? undefined : { scale: 0.96 }}
+                    transition={{ duration: 0.16, ease: "easeOut" }}
                   >
                     {item.icon}
                   </motion.span>
                   <span>{item.name}</span>
                 </div>
               </Link>
-            </li>
+            </motion.li>
           ))}
-        </ul>
+        </motion.ul>
       </nav>
 
-      <div className="p-4 border-t border-border">
-        <div className="bg-muted rounded-xl p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-muted-foreground">Storage</span>
-            <span className="text-xs text-muted-foreground">
-              {usedPercent.toFixed(1)}% used
+      <div className="border-t border-sidebar-border p-4">
+        <div className="rounded-2xl border border-sidebar-border bg-card/70 p-4 shadow-lg shadow-background/20">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <span className="text-sm font-semibold text-card-foreground">Storage</span>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {isLoading ? "Loading…" : isError ? "Unavailable" : `${usedPercent.toFixed(1)}% used`}
             </span>
           </div>
-          <Progress value={usedPercent} className="h-2 bg-background" />
-          <div className="mt-3 text-xs text-muted-foreground">
-            {usedSpace} of {totalSpace} used
+          <Progress value={isLoading || isError ? 0 : usedPercent} aria-label="Storage used" className="h-2 bg-secondary [&>div]:bg-accent" />
+          <div className="mt-3 text-xs leading-relaxed text-muted-foreground">
+            {isLoading ? "Storage details are loading" : isError ? "Storage details could not be loaded" : `${usedSpace} of ${totalSpace} used`}
           </div>
-          <Button variant="link" size="sm" className="mt-2 px-0 text-accent hover:text-accent/80">
+          <Button variant="link" size="sm" className="mt-2 h-auto px-0 text-accent hover:text-accent/80">
             Upgrade Plan
           </Button>
         </div>

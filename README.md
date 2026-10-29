@@ -32,7 +32,7 @@ CloudVault is a personal cloud storage solution inspired by Apple's design langu
 ## Installation
 
 ### Prerequisites
-- Node.js (v16 or later)
+- Node.js 24.x
 - npm or yarn
 
 ### Steps

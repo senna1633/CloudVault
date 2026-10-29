@@ -54,8 +54,8 @@
     "cmdk": "^1.0.0",
     "connect-pg-simple": "^10.0.0",
     "date-fns": "^3.6.0",
-    "drizzle-orm": "^0.42.0",
-    "drizzle-zod": "^0.7.0",
+    "drizzle-orm": "^0.45.4",
+    "drizzle-zod": "^0.8.3",
     "embla-carousel-react": "^8.3.0",
     "express": "^4.21.2",
     "express-session": "^1.18.2",
@@ -78,8 +78,7 @@
     "vaul": "^1.1.0",
     "wouter": "^3.3.5",
     "ws": "^8.18.0",
-    "zod": "^3.23.8",
-    "zod-validation-error": "^3.4.0"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@replit/vite-plugin-cartographer": "^0.0.11",
@@ -98,8 +97,8 @@
     "@vitejs/plugin-react": "^4.4.1",
     "autoprefixer": "^10.4.20",
     "cross-env": "^7.0.3",
-    "drizzle-kit": "^0.18.1",
-    "esbuild": "^0.25.7",
+    "drizzle-kit": "^0.31.11",
+    "esbuild": "^0.25.12",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
     "tsx": "^4.19.4",
@@ -108,5 +107,10 @@
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
+  },
+  "overrides": {
+    "postcss-selector-parser": "6.1.5",
+    "qs": "6.17.1",
+    "esbuild": "$esbuild"
   }
 }

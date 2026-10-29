@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { useLocation } from "wouter";
 import { 
   Dialog, 
   DialogContent, 
@@ -9,26 +11,38 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { FileIcon } from "@/components/ui/file-icons";
-import { Download, Share2, X } from "lucide-react";
+import { Download } from "lucide-react";
 import { useFileContext } from "@/contexts/FileContext";
 import { formatDate, formatFileSize } from "@/lib/fileUtils";
 
 export function FilePreviewModal() {
-  const { selectedFile, showPreviewModal, setShowPreviewModal } = useFileContext();
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  
+  const { selectedFile, showPreviewModal, setShowPreviewModal, setSelectedFile } = useFileContext();
+  const reduceMotion = useReducedMotion();
+  const isImage = selectedFile?.type.startsWith("image/") ?? false;
+  const [location] = useLocation();
+  const [imageError, setImageError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+  const dedicatedImagePreview = location === "/photos" || location === "/trash";
+  const isOpen = showPreviewModal && Boolean(selectedFile) && !(isImage && dedicatedImagePreview);
+
   useEffect(() => {
-    // Clean up any previous object URLs to prevent memory leaks
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
-  }, [previewUrl]);
+    setImageError(false);
+    setImageLoading(true);
+  }, [selectedFile?.id]);
+
+  const closePreview = () => {
+    setShowPreviewModal(false);
+    setSelectedFile(null);
+  };
   
   const handleDownload = () => {
     if (selectedFile) {
-      window.open(`/api/download/${selectedFile.id}`, '_blank');
+      const link = document.createElement("a");
+      link.href = `/api/download/${selectedFile.id}`;
+      link.download = selectedFile.name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     }
   };
   
@@ -40,36 +54,37 @@ export function FilePreviewModal() {
         </div>
       );
     }
-    
-    // For image files
-    if (selectedFile.type.startsWith('image/')) {
+
+    if (isImage && !imageError) {
       return (
-        <div className="flex items-center justify-center h-full">
-          <img 
-            src={`/api/download/${selectedFile.id}`}
+        <div className="relative flex items-center justify-center h-full">
+          {imageLoading && (
+            <div className="absolute inset-0 flex items-center justify-center" role="status" aria-label="Loading image preview">
+              <div className="w-8 h-8 border-4 border-accent/20 border-t-accent rounded-full animate-spin" />
+            </div>
+          )}
+          <img
+            src={`/api/files/${selectedFile.id}/download`}
             alt={selectedFile.name}
-            className="max-w-full max-h-[50vh] object-contain rounded-lg"
+            className={`max-w-full max-h-[70vh] object-contain rounded-lg ${imageLoading ? "opacity-0" : ""}`}
+            onLoad={() => setImageLoading(false)}
+            onError={() => {
+              setImageLoading(false);
+              setImageError(true);
+            }}
           />
         </div>
       );
     }
-    
-    // For PDF files (simple iframe preview)
-    if (selectedFile.type === 'application/pdf') {
-      return (
-        <iframe 
-          src={`/api/download/${selectedFile.id}`}
-          className="w-full h-[50vh] rounded-lg border border-border"
-          title={selectedFile.name}
-        />
-      );
-    }
-    
-    // For other files - show placeholder
+
     return (
       <div className="bg-muted rounded-xl p-8 flex flex-col items-center justify-center h-full">
         <FileIcon fileType={selectedFile.type} fileName={selectedFile.name} size="xl" />
-        <p className="text-muted-foreground mt-4 mb-4">Preview not available. Click below to download this file.</p>
+        <p className="text-muted-foreground mt-4 mb-4 text-center">
+          {isImage
+            ? "This image could not be loaded. Download it to view its contents."
+            : "Preview is not available for this file. Download it to view its contents."}
+        </p>
         <Button className="bg-accent hover:bg-accent/90" onClick={handleDownload}>
           <Download className="mr-2 h-4 w-4" />
           <span>Download</span>
@@ -79,37 +94,43 @@ export function FilePreviewModal() {
   };
   
   return (
-    <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
-      <DialogContent className="bg-secondary max-w-4xl w-full max-h-[90vh] flex flex-col">
-        <DialogHeader className="flex items-center justify-between p-6 border-b border-border">
-          <div>
-            <DialogTitle className="text-xl font-medium">{selectedFile ? selectedFile.name : "No File Selected"}</DialogTitle>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) closePreview(); }}>
+      <DialogContent className="flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-4xl flex-col gap-0 overflow-hidden border-border bg-card p-0 text-card-foreground shadow-2xl">
+        <DialogHeader className="flex flex-row items-start justify-between gap-4 border-b border-border px-5 py-4 pr-14 text-left sm:px-6">
+          <div className="min-w-0">
+            <DialogTitle className="truncate text-lg font-semibold sm:text-xl">
+              {selectedFile ? selectedFile.name : "No File Selected"}
+            </DialogTitle>
             <DialogDescription>
               {selectedFile ? `Preview ${selectedFile.type.split('/')[0]} file` : "No file selected for preview"}
             </DialogDescription>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex shrink-0 items-center">
             {selectedFile && (
-              <Button variant="ghost" size="icon" onClick={handleDownload}>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleDownload}
+                aria-label={`Download ${selectedFile.name}`}
+              >
                 <Download className="h-5 w-5 text-muted-foreground" />
               </Button>
             )}
-            <Button variant="ghost" size="icon">
-              <Share2 className="h-5 w-5 text-muted-foreground" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setShowPreviewModal(false)}>
-              <X className="h-5 w-5 text-muted-foreground" />
-            </Button>
           </div>
         </DialogHeader>
         
-        <div className="flex-1 overflow-auto p-6 bg-background">
+        <motion.div
+          className="min-h-0 flex-1 overflow-auto bg-background p-4 sm:p-6"
+          initial={reduceMotion ? false : { y: 6 }}
+          animate={{ y: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.18, ease: "easeOut" }}
+        >
           {renderPreview()}
-        </div>
+        </motion.div>
         
-        <DialogFooter className="p-4 border-t border-border flex items-center justify-between">
+        <DialogFooter className="flex-row items-center justify-between gap-4 border-t border-border px-5 py-3 sm:px-6">
           {selectedFile && (
-            <div>
+            <div className="min-w-0">
               <div className="text-sm text-muted-foreground">
                 Last modified: {selectedFile.updatedAt ? formatDate(selectedFile.updatedAt) : "Unknown"}
               </div>
@@ -118,7 +139,7 @@ export function FilePreviewModal() {
               </div>
             </div>
           )}
-          <Button variant="outline" onClick={() => setShowPreviewModal(false)}>
+          <Button className="shrink-0" variant="outline" onClick={closePreview}>
             Close
           </Button>
         </DialogFooter>

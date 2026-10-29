@@ -41,6 +41,26 @@ const getUserId = (req: Request): number => {
   return req.user.id;
 };
 
+const parseOptionalId = (value: unknown): number | null | undefined => {
+  if (value === undefined || value === null || value === "") return null;
+  if (
+    (typeof value !== "number" && (typeof value !== "string" || !/^\d+$/.test(value))) ||
+    (typeof value === "number" && !Number.isSafeInteger(value))
+  ) return undefined;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+};
+
+const removeUploadedFile = (filePath: string) => {
+  try {
+    fs.unlinkSync(filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      console.error(`Failed to remove uploaded file at ${filePath}:`, error);
+    }
+  }
+};
+
 // Ensure uploads directory exists - Keep this as is
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -84,7 +104,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/folders', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = getUserId(req); // Use getUserId helper
-      const parentId = req.query.parentId ? Number(req.query.parentId) : null;
+      const parentId = parseOptionalId(req.query.parentId);
+      if (parentId === undefined) {
+        return res.status(400).json({ message: "Invalid parentId" });
+      }
       // The storage method already filters by userId
       const folders = await storage.getFoldersByParentId(parentId, userId);
       res.json(folders);
@@ -98,15 +121,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/folders', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = getUserId(req); // Use getUserId helper
+      const parentId = parseOptionalId(req.body?.parentId);
+      if (parentId === undefined) {
+        return res.status(400).json({ message: "Invalid parentId" });
+      }
+      if (parentId !== null) {
+        const parent = await storage.getFolderById(parentId);
+        if (!parent || parent.userId !== userId || parent.isDeleted) {
+          return res.status(400).json({ message: "Invalid parent folder" });
+        }
+      }
 
       const validation = insertFolderSchema.safeParse({
         ...req.body,
+        parentId,
         userId, // Ensure the folder is created with the logged-in user's ID
       });
 
       if (!validation.success) {
-        log(`Validation error creating folder: ${JSON.stringify(validation.error.errors)}`, "api/folders");
-        return res.status(400).json({ message: "Invalid folder data", errors: validation.error.errors });
+        log(`Validation error creating folder: ${JSON.stringify(validation.error.issues)}`, "api/folders");
+        return res.status(400).json({ message: "Invalid folder data", errors: validation.error.issues });
       }
 
       const folder = await storage.createFolder(validation.data);
@@ -189,7 +223,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/files', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = getUserId(req); // Use getUserId helper
-      const folderId = req.query.folderId ? Number(req.query.folderId) : null;
+      const folderId = parseOptionalId(req.query.folderId);
+      if (folderId === undefined) {
+        return res.status(400).json({ message: "Invalid folderId" });
+      }
       // The storage method already filters by userId and folderId
       const files = await storage.getFilesByFolderId(folderId, userId);
       res.json(files);
@@ -199,13 +236,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Photos across the user's folders - Requires authentication
+  app.get('/api/photos', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const photos = await storage.getPhotos(getUserId(req));
+      res.json(photos);
+    } catch (error) {
+      console.error("Error fetching photos:", error);
+      res.status(500).json({ message: "Failed to fetch photos" });
+    }
+  });
+
   // Recent files - Requires authentication
   app.get('/api/files/recent', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = getUserId(req); // Use getUserId helper
-      const limit = req.query.limit ? Number(req.query.limit) : 8;
+      const limitValue = req.query.limit === undefined ? 8 : Number(req.query.limit);
+      if (!Number.isSafeInteger(limitValue) || limitValue < 0) {
+        return res.status(400).json({ message: "Invalid limit" });
+      }
       // The storage method already filters by userId
-      const recentFiles = await storage.getRecentFiles(userId, limit);
+      const recentFiles = await storage.getRecentFiles(userId, limitValue);
       res.json(recentFiles);
     } catch (error) {
       console.error("Error fetching recent files:", error);
@@ -236,7 +287,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No files uploaded" });
       }
 
-      const folderId = req.body.folderId ? Number(req.body.folderId) : null;
+      const folderId = parseOptionalId(req.body.folderId);
+      if (folderId === undefined) {
+        for (const file of uploadedFiles) removeUploadedFile(file.path);
+        return res.status(400).json({ message: "Invalid folderId" });
+      }
+      if (folderId !== null) {
+        const folder = await storage.getFolderById(folderId);
+        if (!folder || folder.userId !== userId || folder.isDeleted) {
+          for (const file of uploadedFiles) removeUploadedFile(file.path);
+          return res.status(400).json({ message: "Invalid folder" });
+        }
+      }
       const savedFiles = [];
       const errors = [];
 
@@ -273,9 +335,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error(`Failed to save file ${file.originalname}:`, err.message);
           errors.push({ filename: file.originalname, message: err.message });
           // Clean up the uploaded file if storage fails
-          if (fs.existsSync(file.path)) {
-            fs.unlinkSync(file.path);
-          }
+          removeUploadedFile(file.path);
           // Continue with next file
         }
       }
@@ -309,11 +369,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/files", isAuthenticated, upload.single("file"), async (req: Request, res: Response) => {
     try {
       const userId = getUserId(req); // Use getUserId helper
-      const { folderId } = req.query;
+      const folderId = parseOptionalId(req.query.folderId);
       const file = req.file;
 
       if (!file) {
         return res.status(400).json({ error: "No file uploaded" });
+      }
+      if (folderId === undefined) {
+        removeUploadedFile(file.path);
+        return res.status(400).json({ message: "Invalid folderId" });
+      }
+      if (folderId !== null) {
+        const folder = await storage.getFolderById(folderId);
+        if (!folder || folder.userId !== userId || folder.isDeleted) {
+          removeUploadedFile(file.path);
+          return res.status(400).json({ message: "Invalid folder" });
+        }
       }
 
       const fileData = {
@@ -321,7 +392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: file.mimetype,
         size: file.size,
         path: file.path,
-        folderId: folderId ? Number(folderId) : null,
+        folderId,
         userId, // Associate file with the logged-in user
         isShared: false,
         sharedBy: null
@@ -340,13 +411,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // const savedFile = await storage.createFile(validation.data);
 
       const savedFile = await storage.createFile(fileData); // Use the original fileData if not validating with Zod
-      res.json(savedFile);
+      res.status(201).json(savedFile);
     } catch (error: any) {
       console.error("File upload error:", error);
       // Clean up uploaded file if storage.createFile failed after multer saved it
-      if (req.file && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+      if (req.file) removeUploadedFile(req.file.path);
       res.status(500).json({ error: error.message });
     }
   });
@@ -462,6 +531,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Download error:", error);
       res.status(500).json({ message: "Failed to download file" });
+    }
+  });
+
+  // Inline file response for previews and thumbnails
+  app.get('/api/files/:id/download', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const fileId = parseOptionalId(req.params.id);
+      if (fileId === null || fileId === undefined) {
+        return res.status(400).json({ message: "Invalid file ID" });
+      }
+
+      const file = await storage.getFileById(fileId);
+      if (!file || file.userId !== getUserId(req)) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      if (!fs.existsSync(file.path)) {
+        return res.status(404).json({ message: "File not found on disk" });
+      }
+
+      res.sendFile(file.path, {
+        headers: {
+          "Content-Type": file.type,
+          "Content-Disposition": "inline",
+        },
+      });
+    } catch (error) {
+      console.error("Preview error:", error);
+      res.status(500).json({ message: "Failed to preview file" });
     }
   });
 

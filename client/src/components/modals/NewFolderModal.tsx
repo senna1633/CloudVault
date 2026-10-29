@@ -1,9 +1,9 @@
-import { useState } from "react";
 import { useParams } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
+import { motion, useReducedMotion } from "framer-motion";
 import { 
   Dialog, 
   DialogContent, 
@@ -26,10 +26,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useFileContext } from "@/contexts/FileContext";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/use-auth";
 
 const folderSchema = z.object({
-  name: z.string().min(1, "Folder name is required"),
+  name: z.string().trim().min(1, "Folder name is required"),
   color: z.string().default("#0A84FF"),
 });
 
@@ -46,10 +45,9 @@ const folderColors = [
 
 export function NewFolderModal() {
   const params = useParams();
-  const { user } = useAuth();
   const { showNewFolderModal, setShowNewFolderModal } = useFileContext();
   const { toast } = useToast();
-  const [selectedColor, setSelectedColor] = useState("#0A84FF");
+  const reduceMotion = useReducedMotion();
   
   const form = useForm<FolderFormValues>({
     resolver: zodResolver(folderSchema),
@@ -64,7 +62,6 @@ export function NewFolderModal() {
       return apiRequest("POST", "/api/folders", {
         ...data,
         parentId: params.folderId ? Number(params.folderId) : null,
-        userId: user?.id, // Include userId from authenticated user
       });
     },
     onSuccess: () => {
@@ -85,14 +82,19 @@ export function NewFolderModal() {
     },
   });
   
-  const onSubmit = (data: FolderFormValues) => {
-    data.color = selectedColor;
-    createFolderMutation.mutate(data);
-  };
+  const selectedColor = form.watch("color");
+  const onSubmit = (data: FolderFormValues) => createFolderMutation.mutate(data);
   
   return (
-    <Dialog open={showNewFolderModal} onOpenChange={setShowNewFolderModal}>
-      <DialogContent className="bg-secondary sm:max-w-md">
+    <Dialog
+      open={showNewFolderModal}
+      onOpenChange={(open) => {
+        if (createFolderMutation.isPending) return;
+        setShowNewFolderModal(open);
+        if (!open) form.reset();
+      }}
+    >
+      <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] overflow-y-auto border-border bg-card text-card-foreground shadow-2xl sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl font-medium">Create New Folder</DialogTitle>
           <DialogDescription>
@@ -101,7 +103,7 @@ export function NewFolderModal() {
         </DialogHeader>
         
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6" aria-busy={createFolderMutation.isPending}>
             <FormField
               control={form.control}
               name="name"
@@ -111,7 +113,9 @@ export function NewFolderModal() {
                   <FormControl>
                     <Input 
                       placeholder="Enter folder name" 
-                      className="bg-muted text-foreground"
+                      className="bg-background text-foreground placeholder:text-muted-foreground"
+                      autoComplete="off"
+                      disabled={createFolderMutation.isPending}
                       {...field} 
                     />
                   </FormControl>
@@ -122,36 +126,43 @@ export function NewFolderModal() {
             
             <div className="space-y-2">
               <FormLabel className="text-sm text-muted-foreground">Folder Color</FormLabel>
-              <div className="flex space-x-2">
+              <div className="flex flex-wrap gap-3" role="group" aria-label="Folder color">
                 {folderColors.map((color) => (
-                  <button
+                  <motion.button
                     key={color.value}
                     type="button"
-                    className={`w-8 h-8 rounded-full ${
-                      selectedColor === color.value ? 'ring-2 ring-foreground' : ''
+                    className={`h-9 w-9 rounded-full border border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${
+                      selectedColor === color.value ? 'ring-2 ring-foreground ring-offset-2' : ''
                     }`}
+                    whileHover={reduceMotion ? undefined : { scale: 1.08 }}
+                    whileTap={reduceMotion ? undefined : { scale: 0.94 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.14 }}
                     style={{ backgroundColor: color.value }}
-                    onClick={() => setSelectedColor(color.value)}
+                    onClick={() => form.setValue("color", color.value, { shouldDirty: true })}
                     aria-label={`Select ${color.name} color`}
+                    aria-pressed={selectedColor === color.value}
+                    title={color.name}
+                    disabled={createFolderMutation.isPending}
                   />
                 ))}
               </div>
             </div>
             
-            <DialogFooter className="pt-4 border-t border-border">
+            <DialogFooter className="gap-2 border-t border-border pt-4">
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 onClick={() => setShowNewFolderModal(false)}
+                disabled={createFolderMutation.isPending}
               >
                 Cancel
               </Button>
               <Button 
                 type="submit"
-                className="bg-accent hover:bg-accent/90"
+                className="bg-accent text-accent-foreground hover:bg-accent/90"
                 disabled={createFolderMutation.isPending}
               >
-                {createFolderMutation.isPending ? "Creating..." : "Create Folder"}
+                {createFolderMutation.isPending ? "Creating folder…" : "Create Folder"}
               </Button>
             </DialogFooter>
           </form>

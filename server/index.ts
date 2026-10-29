@@ -39,12 +39,27 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+  app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+    if (res.headersSent) {
+      return next(err);
+    }
 
-    res.status(status).json({ message });
-    throw err;
+    const error = err instanceof Error ? err : new Error("Internal Server Error");
+    const candidateStatus =
+      typeof err === "object" && err !== null && "status" in err && typeof err.status === "number"
+        ? err.status
+        : typeof err === "object" && err !== null && "statusCode" in err && typeof err.statusCode === "number"
+          ? err.statusCode
+          : undefined;
+    const status =
+      typeof candidateStatus === "number" &&
+      Number.isInteger(candidateStatus) &&
+      candidateStatus >= 400 &&
+      candidateStatus < 600
+        ? candidateStatus
+        : 500;
+
+    res.status(status).json({ message: error.message || "Internal Server Error" });
   });
 
   // importantly only setup vite in development and after
@@ -63,7 +78,7 @@ app.use((req, res, next) => {
   server.listen({
     port,
     host: "0.0.0.0",
-    reusePort: true,
+    ...(process.platform === "win32" ? {} : { reusePort: true }),
   }, () => {
     log(`serving on port ${port}`);
   });

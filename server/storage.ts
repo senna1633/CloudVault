@@ -10,11 +10,8 @@ import session from "express-session";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import mime from "mime";
 
 import { eq, and, or, isNull } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import Database from "better-sqlite3";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,6 +41,10 @@ function writeJsonFile<T>(filePath: string, data: T): void {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 }
 
+function nextId<T extends { id: number }>(records: T[]): number {
+  return records.reduce((maxId, record) => Math.max(maxId, record.id), 0) + 1;
+}
+
 export interface IStorage {
   // User operations
   getUser(id: number): Promise<User | undefined>;
@@ -61,6 +62,7 @@ export interface IStorage {
   createFile(file: InsertFile): Promise<File>;
   getFileById(id: number): Promise<File | undefined>;
   getFilesByFolderId(folderId: number | null, userId: number): Promise<File[]>;
+  getPhotos(userId: number): Promise<File[]>;
   getRecentFiles(userId: number, limit?: number): Promise<File[]>;
   getSharedFiles(userId: number): Promise<File[]>;
   updateFile(id: number, data: Partial<File>): Promise<File | undefined>;
@@ -76,9 +78,6 @@ export interface IStorage {
 import createMemoryStore from "memorystore";
 
 const MemoryStore = createMemoryStore(session);
-
-const sqlite = new Database("local-database.sqlite");
-const db = drizzle(sqlite);
 
 export class JsonStorage implements IStorage {
   protected users: User[];
@@ -138,7 +137,7 @@ export class JsonStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.users.length + 1;
+    const id = nextId(this.users);
     const user: User = { ...insertUser, id };
     this.users.push(user);
     this.saveUsers();
@@ -147,7 +146,7 @@ export class JsonStorage implements IStorage {
 
   // Folder operations
   async createFolder(insertFolder: InsertFolder): Promise<Folder> {
-    const id = this.folders.length + 1;
+    const id = nextId(this.folders);
     const folder: Folder = {
       id,
       name: insertFolder.name,
@@ -207,6 +206,7 @@ export class JsonStorage implements IStorage {
     if (folderIndex === -1) return false;
 
     this.folders.splice(folderIndex, 1);
+    this.saveFiles();
     this.saveFolders();
     return true;
   }
@@ -216,7 +216,7 @@ export class JsonStorage implements IStorage {
     const { name, size, type, userId, folderId = null } = insertFile;
   
     // Generate a new file ID
-    const id = this.files.length + 1;
+    const id = nextId(this.files);
   
     // Get the actual path from the uploaded file (if available)
     const uploadPath = insertFile.path || path.join(UPLOADS_DIR, `${Date.now()}-${Math.random().toString(36).substring(2)}`);
@@ -256,11 +256,23 @@ export class JsonStorage implements IStorage {
     );
   }
 
-  async getRecentFiles(userId: number, limit: number = 8): Promise<File[]> {
+  async getPhotos(userId: number): Promise<File[]> {
     return this.files
-      .filter(file => file.userId === userId)
+      .filter(file =>
+        file.userId === userId &&
+        !file.isDeleted &&
+        file.type.startsWith("image/"),
+      )
+      .sort((a, b) => new Date(b.updatedAt ?? b.createdAt ?? 0).getTime() -
+        new Date(a.updatedAt ?? a.createdAt ?? 0).getTime());
+  }
+
+  async getRecentFiles(userId: number, limit: number = 8): Promise<File[]> {
+    const safeLimit = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 8;
+    return this.files
+      .filter(file => file.userId === userId && !file.isDeleted)
       .sort((a, b) => new Date(b.updatedAt!).getTime() - new Date(a.updatedAt!).getTime())
-      .slice(0, limit);
+      .slice(0, safeLimit);
   }
 
   async getSharedFiles(userId: number): Promise<File[]> {
@@ -285,10 +297,11 @@ export class JsonStorage implements IStorage {
     const fileIndex = this.files.findIndex(file => file.id === id);
     if (fileIndex === -1) return false;
 
-    const [file] = this.files.splice(fileIndex, 1);
+    const file = this.files[fileIndex];
     if (fs.existsSync(file.path)) {
       fs.unlinkSync(file.path);
     }
+    this.files.splice(fileIndex, 1);
     this.saveFiles();
     return true;
   }
@@ -350,7 +363,17 @@ export class JsonStorage implements IStorage {
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "application/pdf", "text/plain"];
+const ALLOWED_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/avif",
+  "image/bmp",
+  "image/tiff",
+  "application/pdf",
+  "text/plain",
+];
 
 export class EnhancedJsonStorage extends JsonStorage {
   async createFile(insertFile: InsertFile): Promise<File> {
@@ -385,7 +408,7 @@ export class EnhancedJsonStorage extends JsonStorage {
 
     // Create the file record with all required fields
     const file: File = {
-      id: this.files.length + 1,
+      id: nextId(this.files),
       name,
       type,
       size,
